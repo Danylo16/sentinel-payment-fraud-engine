@@ -6,6 +6,7 @@ payment gateways or real funds.
 **Demo build: atomic payments, immutable ledger, configurable fraud rules and a React operations console.**
 Simulation only: risk weights are educational, not calibrated to real fraud data.
 Executed checks and their limitations: [verification](docs/verification.md).
+Console previews from actual CI: [desktop](docs/images/sentinel-console.png) · [mobile](docs/images/sentinel-mobile.png).
 
 ## Stack
 
@@ -98,6 +99,7 @@ mock payments or require CORS. All published ports bind to loopback.
    recipient produces REVIEW (55), leaving balances unchanged. There is no manual approval route.
 6. Use **Accounts & ledger** to inspect signed entries. API documentation remains available in Swagger.
 
+Monitoring APIs: `GET /accounts?limit=50` and `GET /transfers?limit=50`; pass `nextBeforeId` as `beforeId` to continue.
 Charts and metrics explicitly describe loaded records, not lifetime aggregates. Auto refresh is an
 optional 5-second poll, not WebSockets. Account and transfer lists use cursor pagination; funding and
 legacy records have no fabricated score. All monetary parsing, serialization and formatting preserves

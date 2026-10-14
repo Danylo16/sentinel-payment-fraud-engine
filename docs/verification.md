@@ -89,3 +89,10 @@ explicit accessible names fixed them before the successful run.
 
 This is a demonstrable local simulation, not a production financial service. Demo readiness still
 requires the developer to understand and explain the locking, accounting and replay decisions.
+
+Final executable console head `49ece07a1b02cb96396fcbb9df6050b6720247f3` also passed the full workflow in
+[run 38644637428](https://github.com/Danylo16/sentinel-payment-fraud-engine/actions/runs/38644637428):
+72 Java tests, three money tests, two browser tests, Compose and all 1000 measured transfers plus
+post-load invariants. Desktop/mobile screenshots were visually inspected; source images are in
+docs/images. The repeated measurement is preserved as docs/performance/results-repeat.json.
+Subsequent screenshot/evidence documentation does not alter the tested executable behavior.

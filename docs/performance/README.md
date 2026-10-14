@@ -61,3 +61,8 @@ Next useful experiment: repeated runs with identical fixture histories, controll
 history sizes, lock/wait profiling, and a separate open-loop arrival test. Preserve accounting checks
 while investigating history aggregation or batched validation. No Redis/Kafka addition is justified
 by this small experiment. See docs/verification.md for executed proof.
+
+A second successful execution (run 38644637428, head 49ece07) measured 56.17 requests/s shared and
+193.20 independent, with p95 319.71 ms and 62.42 ms respectively. Every request again completed and
+all post-load invariants passed. Raw repeated observations are in results-repeat.json. Two small
+runs are useful reproducibility evidence, not enough for statistical or maximum-capacity conclusions.
