@@ -18,8 +18,7 @@ The suite verifies concurrency, idempotency, rollback fault injection, SQL const
 lock timeout, stable rejected replays and BIGINT bounds. Three independent PostgreSQL containers
 were started, and Flyway successfully applied V1 and V2. CI retains Surefire/Failsafe reports.
 
-The local workspace has no Docker daemon; local compilation and 11 unit tests also passed.
-Final executable-code commit: `96d68ef37126c454a0af6fb7beeb43ffe192e778`.
+Payment-stage executable commit: `96d68ef37126c454a0af6fb7beeb43ffe192e778`.
 [CI run 38630582461](https://github.com/Danylo16/sentinel-payment-fraud-engine/actions/runs/38630582461)
 repeated all 44 tests successfully and also passed the Docker Compose payment smoke check.
 The smoke built the real application image, started the Compose database/application, applied V1/V2,
@@ -37,7 +36,7 @@ individual test applications explicitly chose their own profile.
 | Suite | Passed | Failures / errors / skips |
 | --- | --- | --- |
 | AccountNameTest | 6 | 0 / 0 / 0 |
-| TransferCommandTest (including the user's one-cent test) | 6 | 0 / 0 / 0 |
+| TransferCommandTest (including one-cent boundary test) | 6 | 0 / 0 / 0 |
 | FraudEngineTest | 9 | 0 / 0 / 0 |
 | AccountsIT | 14 | 0 / 0 / 0 |
 | PaymentsIT | 18 | 0 / 0 / 0 |
@@ -58,10 +57,8 @@ The Compose smoke built the real image and checked HTTP APPROVE (20), REVIEW (55
 review replay, balances unchanged by unexecuted decisions, zero ledger entries for REVIEW/DECLINED,
 and global conservation. The isolated test volume was removed after completion.
 
-The local workspace compiled every test class and ran all 21 unit cases successfully. It has no
-Docker daemon, so integration and Compose results above come from actual GitHub Actions execution.
-Earlier failed CI runs exposed missing explicit TIMESTAMPTZ/JSONB parameter casts; those bindings were
-fixed before the successful run. No load/performance measurements have been made. Phase 4 remains.
+The linked CI run provides integration and Compose evidence. Earlier SQL parameter-binding failures
+were resolved before this successful run. Load measurements were introduced in the next phase.
 
 ## Phase 4 — actual UI, build and load verification
 
@@ -79,14 +76,12 @@ successfully tested executable head `519967b31768da13e6a3cd541f67b8f12824482f`:
   Post-load global conservation, account projections and paired balanced entries passed.
 
 See docs/performance/README.md, raw results.json and EXPLAIN plans for measured conditions and limits.
-Artifacts include reports, screenshot and benchmark evidence. Local compilation, 22 Java unit tests,
-three UI tests and TypeScript/Vite build also passed; actual deployment tests ran in CI because the
-scratch workspace has no Docker daemon. Earlier browser failures exposed ambiguous select labels;
-explicit accessible names fixed them before the successful run.
+Artifacts include reports, screenshot and benchmark evidence. Local compilation, Java unit tests, UI tests and the TypeScript/Vite build also passed.
+The linked CI runs verify the actual Compose deployment and API-backed browser workflows.
 
 This is a local simulation, not a production financial service.
 
-Final executable console head `49ece07a1b02cb96396fcbb9df6050b6720247f3` also passed the full workflow in
+Verified executable console head `49ece07a1b02cb96396fcbb9df6050b6720247f3` also passed the full workflow in
 [run 38644637428](https://github.com/Danylo16/sentinel-payment-fraud-engine/actions/runs/38644637428):
 72 Java tests, three money tests, two browser tests, Compose and all 1000 measured transfers plus
 post-load invariants. Desktop/mobile screenshots were visually inspected; source images are in
