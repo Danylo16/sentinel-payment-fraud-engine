@@ -27,4 +27,16 @@ class TransferCommandTest {
         assertThrows(RequestValidationException.class, () -> TransferCommand.validateKey(""));
         assertThrows(RequestValidationException.class, () -> TransferCommand.validateKey(null));
     }
+    @Test void acceptsOneCentWithoutChangingAmount() {
+    UUID source = UUID.randomUUID();
+    UUID target = UUID.randomUUID();
+
+    TransferCommand command = new TransferCommand(
+            source,
+            target,
+            1L
+    );
+
+    assertEquals(1L, command.amountCents());
+}
 }
