@@ -73,6 +73,12 @@ class AccountsIT {
         assertEquals("INVALID_REQUEST", json.readTree(response.body()).get("code").asText());
     }
     @Test void reportsInvalidUuid() throws Exception { assertEquals(400, get("/accounts/invalid").statusCode()); }
+    @Test void fundingRouteIsAbsentOutsideDemoProfile() throws Exception {
+        var response = http.send(HttpRequest.newBuilder(uri("/demo/fundings"))
+                .header("Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString("{}")).build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertEquals(404, response.statusCode());
+    }
     @Test void reportsUnknownRoute() throws Exception { assertEquals(404, get("/missing").statusCode()); }
     @Test void rejectsUnexpectedBalanceProperty() throws Exception {
         var response = post(json.writeValueAsString(java.util.Map.of("name", "Demo", "balanceCents", 100)));

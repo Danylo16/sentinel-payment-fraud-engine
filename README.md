@@ -1,48 +1,53 @@
 # Sentinel — Payment Processing & Fraud Detection Engine
 
-Educational fintech backend for a Java internship portfolio. Simulation only; no banking integrations or real money.
+Educational Java fintech backend for an internship portfolio. Simulation only; no bank accounts,
+payment gateways or real funds.
 
-**Status: Phase 1 implementation. Verification status: see [docs/verification.md](docs/verification.md).**
-Payments, funding, ledger, fraud scoring and transaction history are not implemented yet. Do not claim those features in a CV.
+**Phase 2: accounts, atomic transfers, immutable double-entry movement ledger and audit.**
+Fraud rules, risk scoring and REVIEW/DECLINE are not implemented yet.
+Executed checks and their limitations: [verification](docs/verification.md).
 
 ## Stack
 
-Java 21, Spring Boot 4.1.1, PostgreSQL 17, jOOQ, Flyway, Maven 3.9.11, JUnit 5.13.4,
-Testcontainers 1.21.4, Docker Compose, springdoc OpenAPI 3.0.0, GitHub Actions.
-Versions are pinned or managed by the Boot BOM. JUnit 5 and Testcontainers 1.x are explicit BOM overrides.
-Maven was selected for a conventional build with no additional build language.
+Java 21, Spring Boot 4.1.1, PostgreSQL 17.6, jOOQ 3.20.20, Flyway, Maven 3.9.11,
+JUnit 5.13.4, Testcontainers 1.21.4, Docker Compose, springdoc 3.0.0 and GitHub Actions.
+The Maven Alpine build image avoids a failing local JDK image observed during Foundation setup.
+The runtime image is Temurin 21 JRE, running as a non-root user.
 
 ## Architecture
 
-One deployable application, packages grouped by responsibility. Currently only `accounts` and shared HTTP error handling exist.
+One deployable modular monolith. Constructor injection; HTTP controllers are separate from business
+use cases. SQL is explicit and all request values are bound parameters. No Kafka, Redis or Kubernetes.
 
 ```mermaid
 flowchart TD
-  HTTP[HTTP API] --> A[Accounts service]
-  A --> R[jOOQ repository]
-  R --> DB[(PostgreSQL)]
-  F[Flyway migrations] --> DB
+  API[HTTP API] --> P[Payments use case]
+  API --> A[Accounts API]
+  P --> F[Account funds]
+  P --> L[Ledger]
+  P --> U[Audit]
+  A --> DB[(PostgreSQL)]
+  F --> DB
+  L --> DB
+  U --> DB
 ```
 
-Planned boundaries and payment design: [architecture](docs/architecture.md).
-HTTP controllers validate requests; services own use cases; repositories own SQL. No JPA, Kafka, Redis or Kubernetes.
+[Payment ADR](docs/adr/002-payment-engine.md) explains the transaction, locking, idempotency and
+accounting guarantees. [Architecture](docs/architecture.md) describes boundaries and Phase 3 plans.
 
-## Data model implemented
+## Data model
 
-| accounts column | SQL type | Guarantee |
+| Table | Main fields | Guarantees |
 | --- | --- | --- |
-| id | UUID | Primary key |
-| name | VARCHAR(100) | Required, nonblank |
-| currency | VARCHAR(3) | EUR only |
-| balance_cents | BIGINT | Nonnegative; starts at zero |
-| created_at | TIMESTAMPTZ | Database timestamp |
+| accounts | UUID, name, EUR, BIGINT balance, type | Customer balance >= 0; one SYSTEM_CONTRA |
+| transfers | UUID, key, operation, account IDs, amount, status, failure reason | Unique immutable idempotency request; legal status transition |
+| ledger_entries | Identity ID, transfer/account IDs, signed cents | Immutable; two matching opposite entries per completed transfer |
+| audit_events | Identity ID, transfer ID, status event, time | Append-only received/terminal history |
 
-No API accepts an initial balance or updates balances. There is no seed money in Foundation.
-This keeps funding out of the project until ledger-backed transactions exist.
+Flyway V1 is unchanged. V2 introduces accounting and refuses pre-existing unexplained nonzero balances.
+Accounts created during Foundation with zero balance migrate normally. No existing data needs deletion.
 
 ## Run
-
-Prerequisite: Docker Engine/Desktop with Compose v2; internet for Maven and image downloads.
 
 ```sh
 cp .env.example .env
@@ -50,88 +55,110 @@ docker compose up --build -d
 docker compose logs -f app
 ```
 
+Prerequisites: Docker Desktop/Engine with Compose v2 and internet for images/dependencies.
 API: http://localhost:8080. Swagger: http://localhost:8080/swagger-ui.html.
-OpenAPI JSON: http://localhost:8080/v3/api-docs.
-Ports bind to loopback. Database data persists across restarts. `docker compose down` preserves data;
-`docker compose down -v` **deletes all local simulation data**.
+OpenAPI: http://localhost:8080/v3/api-docs.
 
-For Java development, install JDK 21 and Maven 3.9.11 (or compatible Maven 3.9.x):
+Ports bind to loopback. `docker compose down` keeps database data. `docker compose down -v` **deletes it**.
+Migrations run on application startup. For local Java development, start only `db`, set DB_URL/DB_USER/
+DB_PASSWORD to the Compose settings and run `mvn spring-boot:run` under Java 21.
 
-```sh
-docker compose up -d db
-# .env is consumed by Compose, not automatically by Spring Boot.
-# Set these explicitly to match your .env when running outside Docker.
-export DB_URL=jdbc:postgresql://localhost:5435/sentinel
-export DB_USER=sentinel
-export DB_PASSWORD=sentinel-local-only
-mvn spring-boot:run
+## Controlled demo funding
+
+Default profile has NO HTTP funding route. For a local demonstration, edit `.env`:
+
+```dotenv
+SPRING_PROFILES_ACTIVE=demo
+DEMO_FUNDING_TOKEN=<your-random-token-of-at-least-16-characters>
 ```
 
-Windows PowerShell equivalent for each variable: `$env:DB_PASSWORD = "sentinel-local-only"`.
-Flyway applies migrations on startup. Java 21 is enforced by the build.
+Set an actual token, not the angle-bracket placeholder. Demo startup fails with an empty/short token.
+Recreate the app after changing the profile: `docker compose up -d --force-recreate app`.
+Do not commit `.env` or expose this unauthenticated simulation to the internet.
 
-## API examples
+The system contra-account starts at zero. Funding debits it and credits a customer through the same
+ledger-backed transaction as transfers. It may be negative; customer balances may not.
 
-```sh
-curl -i -X POST http://localhost:8080/accounts \
-  -H 'Content-Type: application/json' -d '{"name":"Demo Alice"}'
-# 201 Created, Location: /accounts/<UUID>
-curl http://localhost:8080/accounts/<UUID>
+## API examples (PowerShell)
+
+```powershell
+$a = Invoke-RestMethod -Method Post -Uri http://localhost:8080/accounts `
+    -ContentType 'application/json' -Body '{"name":"Demo Alice"}'
+$b = Invoke-RestMethod -Method Post -Uri http://localhost:8080/accounts `
+    -ContentType 'application/json' -Body '{"name":"Demo Bob"}'
+
+# Put your configured token into this variable locally; never paste it into a public issue.
+$demoToken = '<your-configured-token>'
+$fundingHeaders = @{ 'Idempotency-Key' = [guid]::NewGuid().ToString(); 'X-Demo-Token' = $demoToken }
+$fundingBody = @{ targetAccountId = $a.id; amountCents = 10000 } | ConvertTo-Json
+Invoke-RestMethod -Method Post -Uri http://localhost:8080/demo/fundings `
+    -Headers $fundingHeaders -ContentType 'application/json' -Body $fundingBody
+
+$headers = @{ 'Idempotency-Key' = [guid]::NewGuid().ToString() }
+$body = @{ sourceAccountId = $a.id; targetAccountId = $b.id; amountCents = 2500 } | ConvertTo-Json
+$t = Invoke-RestMethod -Method Post -Uri http://localhost:8080/transfers `
+    -Headers $headers -ContentType 'application/json' -Body $body
+# Same key and body: HTTP 200, same transfer ID, no additional spend.
+Invoke-RestMethod -Method Post -Uri http://localhost:8080/transfers `
+    -Headers $headers -ContentType 'application/json' -Body $body
+Invoke-RestMethod -Uri "http://localhost:8080/transfers/$($t.id)"
+Invoke-RestMethod -Uri "http://localhost:8080/transfers/$($t.id)/audit"
+Invoke-RestMethod -Uri "http://localhost:8080/accounts/$($a.id)/transactions?limit=20"
 ```
 
-Response fields: `id`, `name`, `currency`, `balanceCents`, `createdAt`.
-Name is stripped of surrounding whitespace and limited to 100 Unicode code points.
+Money is integer cents. Fractional JSON amounts are rejected. EUR is implicit; foreign currency fields
+and unknown JSON properties are rejected. Keys contain 1–128 printable non-space ASCII characters.
+History is newest first; pass returned `nextBeforeId` as `beforeId` for the next page (limit 1–100).
 
-Errors use one structure:
+| Outcome | HTTP | Body / behavior |
+| --- | --- | --- |
+| Create account or complete new transfer/funding | 201 | Resource and Location header |
+| Replay completed transfer | 200 | Original transfer; Idempotency-Replayed: true |
+| Insufficient funds or numeric balance limit | 409 | Stable error containing transferId; persisted REJECTED |
+| Replay rejected request | 409 | Same rejection body even if balance subsequently changes |
+| Reuse key for different operation/parameters | 409 | IDEMPOTENCY_CONFLICT |
+| Invalid JSON/input/header | 400 | Common error format |
+| Missing account/transfer/route | 404 | Common error format |
+| Wrong demo token | 403 | FORBIDDEN |
+| Deadlock/lock timeout/serialization/query timeout | 503 | RETRYABLE_TRANSACTION_FAILURE; Retry-After: 1; retry same key |
+| Unexpected failure | 500 | Safe message and errorId; transaction rolled back |
 
-```json
-{"timestamp":"2026-10-14T00:00:00Z","status":404,"code":"NOT_FOUND","message":"Account not found","errorId":"<UUID>","fields":{}}
-```
+Errors use `timestamp`, `status`, `code`, `message`, `errorId`, `fields`. Unexpected SQL messages and
+request bodies are not logged. No balances, names, tokens or idempotency keys are logged by our services.
 
-Invalid JSON/name/UUID: 400. Unknown account/route: 404. Unsupported method: 405. Unsupported media type: 415. Unexpected failure: 500 with safe message and logged errorId.
-The example timestamp is illustrative. IDs are not authentication credentials.
+## Financial invariants
+
+1. Total balances including SYSTEM_CONTRA remain zero.
+2. Each completed transfer has exactly two entries matching payer, payee and amount; their sum is zero.
+3. Each account balance equals its ledger projection.
+4. Customer balances never become negative; arithmetic bounds prevent BIGINT overflow/underflow.
+5. A committed idempotency key identifies one immutable request and stable result.
+6. Balance changes, ledger, status and audit commit or roll back together.
+7. Rejected transfers have zero ledger entries. Ledger and audit cannot be updated, deleted or truncated.
+
+Constraints and deferred triggers enforce these at the database boundary. A database administrator can
+still disable triggers; the development owner role is not a production tamper-proof security design.
 
 ## Tests
 
 ```sh
-mvn test    # Unit tests, including name normalization and boundary conditions
-mvn verify  # Unit tests + real PostgreSQL via Testcontainers + packaged application
+mvn test    # 11 unit cases
+mvn verify  # Unit + real PostgreSQL Testcontainers tests
 ```
 
-Docker must be running for `verify`. Integration tests are named `*IT` and run through Failsafe.
-Tests do not silently skip when Docker is absent. No H2 substitution is used.
-The database supplied by Testcontainers is isolated from Compose data.
-CI is configured to run `verify`; a workflow file is not evidence of a successful CI run.
+`verify` requires a running Docker daemon; no tests silently skip when Docker is absent. Test databases
+are independent of Compose data. Integration checks include HTTP contracts, accounting constraints,
+parallel identical requests, overspending, opposite-direction transfers, failure during the second
+ledger write, stable rejection replay, lock timeout, immutable history and integer bounds.
+CI runs verify and retains reports. Execution status is in [verification](docs/verification.md).
 
-Integration cases: create/read over HTTP, response Location, zero initial balance, invalid inputs,
-missing accounts, direct SQL constraint violations, OpenAPI generation.
+## Limits and next steps
 
-## Financial invariants: Phase 2 acceptance criteria
+No authentication for customer API, KYC/AML, gateway integrations, FX, fees, reservations, reversals,
+manual review workflow, production roles/backups or distributed operations. No performance claims.
+Funding is an accounting simulation, not an external settlement integration.
 
-Not yet implemented or verified:
+Phase 3: deterministic fraud rules, configurable scoring, persisted decisions and no monetary writes
+for REVIEW/DECLINE. Phase 4: measured load, bottleneck analysis, final review and reproducible demo.
 
-1. Each committed transfer has exactly two immutable, opposite signed ledger entries summing to zero.
-2. Balances equal the sum of ledger entries for each account.
-3. Customer balances never become negative.
-4. Total balance, including the system contra account, is conserved.
-5. Identical idempotency key and parameters replay one persisted result; changed parameters conflict.
-6. Balance changes, ledger, transfer status and audit commit or roll back together.
-7. REVIEW and DECLINED payments never write monetary ledger entries.
-
-## Simulation limits
-
-No authentication/authorization, real KYC/AML, bank gateways, currencies besides EUR, deployment hardening,
-backup strategy or distributed operations. This API must remain local. Customer display names are fictional.
-Compose credentials and container database privileges are for local development only.
-Structured logging avoids payloads and SQL exception messages. Financial history and persistent audit are future work.
-No performance measurements have been made.
-
-## Roadmap
-
-1. Foundation: prove schema/API/unit and PostgreSQL tests.
-2. Payments: double entry, demo system funding, transaction lifecycle, idempotency, ordered row locks,
-   rollback and concurrency tests.
-3. Fraud: independent deterministic rules, configurable risk bands, persisted decisions and audit.
-4. Quality: measured load tests, bottleneck analysis, final documentation and demonstration.
-
-See [ADRs](docs/adr/001-foundation.md), [learning task](docs/learning.md) and [verification](docs/verification.md).
+Learning exercise: [docs/learning.md](docs/learning.md).
