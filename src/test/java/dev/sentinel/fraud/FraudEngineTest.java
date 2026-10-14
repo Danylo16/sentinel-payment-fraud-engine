@@ -69,20 +69,19 @@ class FraudEngineTest {
         assertThrows(IllegalArgumentException.class,()->new FraudProperties(40,70,100,35,0,60,30,20,5,3,35));
     }
     @Test void newRecipientAloneProducesTwentyAndApprove() {
-	
-    	var context = new FraudContext(
-            100L,
-            0L,
-            false,
-            0L,
-            null
-    	);
+        var context = new FraudContext(
+                100L,
+                0L,
+                false,
+                0L,
+                null
+        );
 
-    	var result = engine().assess(context);
+        var result = engine().assess(context);
 
-    	assertEquals(20, result.score());
-    	assertEquals("APPROVE", result.decision());
-    	assertEquals(1, result.rules().size());
-    	assertEquals("NEW_RECIPIENT", result.rules().get(0).ruleId());
-   }
+        assertEquals(20, result.score());
+        assertEquals("APPROVE", result.decision());
+        assertEquals(1, result.rules().size());
+        assertEquals("NEW_RECIPIENT", result.rules().get(0).ruleId());
+    }
 }
