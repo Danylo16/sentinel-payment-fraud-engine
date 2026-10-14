@@ -1,0 +1,31 @@
+spring:
+  application:
+    name: sentinel
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5435/sentinel}
+    username: ${DB_USER:sentinel}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 10
+      connection-timeout: 5000
+  jooq:
+    sql-dialect: POSTGRES
+  flyway:
+    enabled: true
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
+server:
+  port: 8080
+  error:
+    include-message: never
+    include-stacktrace: never
+logging:
+  structured:
+    format:
+      console: ecs
+  level:
+    org.jooq.tools.LoggerListener: WARN
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
