@@ -28,6 +28,13 @@ class AccountController {
         return ResponseEntity.created(URI.create("/accounts/" + account.id())).body(account);
     }
 
+    @GetMapping
+    @Operation(summary = "List customer accounts using a newest-first cursor; system contra is excluded")
+    AccountService.AccountPage list(@RequestParam(defaultValue = "50") @Min(1) @Max(100) int limit,
+                                   @RequestParam(required = false) UUID beforeId) {
+        return service.page(limit, beforeId);
+    }
+
     @GetMapping("/{id}")
     @Operation(summary = "Get an account and its balance in cents")
     Account get(@PathVariable UUID id) { return service.get(id); }

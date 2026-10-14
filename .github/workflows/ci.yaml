@@ -5,7 +5,7 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -19,7 +19,23 @@ jobs:
           SPRING_PROFILES_ACTIVE: demo
           DEMO_FUNDING_TOKEN: ci-profile-isolation-test-token
         run: mvn -B -ntp verify
-      - name: Docker Compose payment smoke
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: UI typecheck, build and integer-money tests
+        run: |
+          npm ci --prefix web --no-fund --no-audit
+          npm --prefix web test
+          npm --prefix web run build
+      - name: Install browser for actual UI verification
+        working-directory: web
+        run: npx playwright install --with-deps chromium
+      - name: Docker Compose API, UI and measured load
+        env:
+          RUN_UI_TESTS: 'true'
+          RUN_LOAD_TEST: 'true'
         run: bash scripts/compose-smoke.sh
       - name: Test reports
         if: always()
@@ -29,3 +45,6 @@ jobs:
           path: |
             target/surefire-reports/
             target/failsafe-reports/
+            target/performance/
+            web/playwright-report/
+            web/test-results/

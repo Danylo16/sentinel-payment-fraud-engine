@@ -3,3 +3,8 @@ target
 .env
 .idea
 *.log
+
+web/node_modules
+web/dist
+web/test-results
+web/playwright-report

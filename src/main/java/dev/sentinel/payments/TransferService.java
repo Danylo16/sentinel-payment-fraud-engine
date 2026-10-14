@@ -13,6 +13,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class TransferService {
+    public record TransferSummary(Transfer transfer, Integer riskScore, String fraudDecision) {}
+    public record TransferPage(java.util.List<TransferSummary> items, UUID nextBeforeId) {}
     private final DSLContext sql;
     private final AccountFunds accounts;
     private final LedgerService ledger;
@@ -88,6 +90,21 @@ public class TransferService {
                 || !previous.targetAccountId().equals(request.targetAccountId()) || previous.amountCents() != request.amountCents())
             throw new IdempotencyConflictException();
         return new TransferResult(previous, true);
+    }
+
+    @Transactional(readOnly = true)
+    public TransferPage page(int limit, UUID beforeId) {
+        if (beforeId != null) get(beforeId);
+        var rows = sql.fetch("""
+                SELECT t.*, f.score AS risk_score, f.decision AS fraud_decision
+                FROM transfers t LEFT JOIN fraud_decisions f ON f.transfer_id=t.id
+                WHERE (?::UUID IS NULL OR (t.created_at,t.id) <
+                       (SELECT created_at,id FROM transfers WHERE id=?))
+                ORDER BY t.created_at DESC,t.id DESC LIMIT ?
+                """, beforeId, beforeId, limit + 1);
+        var items = rows.stream().limit(limit).map(row -> new TransferSummary(map(row),
+                row.get("risk_score", Integer.class), row.get("fraud_decision", String.class))).toList();
+        return new TransferPage(items, rows.size() > limit ? items.getLast().transfer().id() : null);
     }
 
     @Transactional(readOnly = true)

@@ -3,16 +3,17 @@
 Educational Java fintech backend for an internship portfolio. Simulation only; no bank accounts,
 payment gateways or real funds.
 
-**Phase 3: atomic payments, immutable ledger, configurable fraud rules and decision audit.**
+**Demo build: atomic payments, immutable ledger, configurable fraud rules and a React operations console.**
 Simulation only: risk weights are educational, not calibrated to real fraud data.
 Executed checks and their limitations: [verification](docs/verification.md).
+Console previews from actual CI: [desktop](docs/images/sentinel-console.png) · [mobile](docs/images/sentinel-mobile.png).
 
 ## Stack
 
 Java 21, Spring Boot 4.1.1, PostgreSQL 17.6, jOOQ 3.20.20, Flyway, Maven 3.9.11,
 JUnit 5.13.4, Testcontainers 1.21.4, Docker Compose, springdoc 3.0.0 and GitHub Actions.
 The Maven Alpine build image avoids a failing local JDK image observed during Foundation setup.
-The runtime image is Temurin 21 JRE, running as a non-root user.
+The runtime image is Temurin 21 JRE, running as a non-root user. The optional browser console uses React 19, TypeScript 7 and Vite 8; Node 24 builds locked dependencies and Nginx serves static assets.
 
 ## Architecture
 
@@ -21,7 +22,9 @@ use cases. SQL is explicit and all request values are bound parameters. No Kafka
 
 ```mermaid
 flowchart TD
-  API[HTTP API] --> P[Payments use case]
+  UI[React console] --> Proxy[Nginx API proxy]
+  Proxy --> API[HTTP API]
+  API --> P[Payments use case]
   API --> A[Accounts API]
   P --> F[Account funds]
   P --> L[Ledger]
@@ -59,11 +62,11 @@ docker compose logs -f app
 ```
 
 Prerequisites: Docker Desktop/Engine with Compose v2 and internet for images/dependencies.
-API: http://localhost:8080. Swagger: http://localhost:8080/swagger-ui.html.
+Console: http://localhost:5173. API: http://localhost:8080. Swagger: http://localhost:8080/swagger-ui.html.
 OpenAPI: http://localhost:8080/v3/api-docs.
 
 Ports bind to loopback. `docker compose down` keeps database data. `docker compose down -v` **deletes it**.
-Migrations run on application startup. For local Java development, start only `db`, set DB_URL/DB_USER/
+Migrations V1–V4 run on application startup. V4 only adds monitoring cursor indexes. For local Java development, start only `db`, set DB_URL/DB_USER/
 DB_PASSWORD to the Compose settings and run `mvn spring-boot:run` under Java 21.
 
 ## Controlled demo funding
@@ -81,6 +84,31 @@ Do not commit `.env` or expose this unauthenticated simulation to the internet.
 
 The system contra-account starts at zero. Funding debits it and credits a customer through the same
 ledger-backed transaction as transfers. It may be negative; customer balances may not.
+
+## Browser console
+
+Open http://localhost:5173 after `docker compose up --build -d`. No Node installation is needed for
+Compose. The page reads actual data from Java through a same-origin Nginx `/api` proxy; it does not
+mock payments or require CORS. All published ports bind to loopback.
+
+1. Click **New account** and create Alice and Bob.
+2. Expand **Controlled demo funding**, select Alice, enter `2000.00` EUR and your configured demo token.
+3. Send `10.00` EUR from Alice to Bob. Inspect the real score, rule evidence and status audit.
+4. Click **Retry same request**: same key/body, same transfer, no additional debit.
+5. Create Carol and start a **New request** of `1000.00` EUR from Alice to Carol. Large amount + new
+   recipient produces REVIEW (55), leaving balances unchanged. There is no manual approval route.
+6. Use **Accounts & ledger** to inspect signed entries. API documentation remains available in Swagger.
+
+Monitoring APIs: `GET /accounts?limit=50` and `GET /transfers?limit=50`; pass `nextBeforeId` as `beforeId` to continue.
+Charts and metrics explicitly describe loaded records, not lifetime aggregates. Auto refresh is an
+optional 5-second poll, not WebSockets. Account and transfer lists use cursor pagination; funding and
+legacy records have no fabricated score. All monetary parsing, serialization and formatting preserves
+Java long cents with BigInt/lossless JSON. The token stays only in memory. Request keys/bodies are kept
+in sessionStorage for safe retries after a reload; that storage is a UI convenience, not the financial
+authority. Only PostgreSQL supplies idempotency and money guarantees.
+
+For UI development (Node 24), run `npm ci --prefix web`, then `npm --prefix web run dev` with the Java
+API on 8080. Vite proxies `/api` locally. Stop Compose's web service first if it occupies port 5173.
 
 ## API examples (PowerShell)
 
@@ -176,6 +204,9 @@ still disable triggers; the development owner role is not a production tamper-pr
 ```sh
 mvn test    # Unit tests (including independent fraud rules)
 mvn verify  # Unit + real PostgreSQL Testcontainers tests
+npm ci --prefix web
+npm --prefix web test
+npm --prefix web run build
 ```
 
 `verify` requires a running Docker daemon; no tests silently skip when Docker is absent. Test databases
@@ -183,14 +214,14 @@ are independent of Compose data. Integration checks include HTTP contracts, acco
 parallel identical requests, overspending, opposite-direction transfers, failure during the second
 ledger write, stable rejection replay, lock timeout, immutable history and integer bounds.
 Fraud tests additionally cover scoring boundaries, concurrent velocity decisions, REVIEW/DECLINE replay, immutable decisions, decision-write rollback, expired windows and upgrading a populated V2 database.
-CI runs verify, a Docker Compose payment and fraud smoke check, and retains reports. Execution status is in [verification](docs/verification.md).
+CI runs Java verification, UI typechecking/build and precision tests, actual Playwright browser tests against Compose, and a localhost load measurement with post-run accounting checks. Reports, traces, screenshots and measurement artifacts are retained. Execution status is in [verification](docs/verification.md).
 
 ## Limits and next steps
 
 No authentication for customer API, KYC/AML, gateway integrations, FX, fees, reservations, reversals,
-manual review workflow, production roles/backups or distributed operations. No performance claims.
+manual review workflow, production roles/backups or distributed operations. No production capacity claims.
 Funding is an accounting simulation, not an external settlement integration.
 
-Phase 4: measured load, bottleneck analysis, final review and reproducible demo.
+The load driver and review process are documented in [performance](docs/performance/README.md) and [code review](docs/code-review.md). Measurement results and limitations are recorded after actual execution. Portfolio text and interview preparation: [docs/portfolio.md](docs/portfolio.md).
 
 Learning exercise: [docs/learning.md](docs/learning.md).

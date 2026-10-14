@@ -21,10 +21,23 @@ class TransferController {
     TransferController(TransferService transfers, AuditService audit, dev.sentinel.fraud.FraudService fraud) { this.transfers = transfers; this.audit = audit; this.fraud = fraud; }
 
     @PostMapping
-    @Operation(summary = "Atomically transfer EUR cents between customer accounts")
+    @Operation(summary = "Assess risk and create a EUR transfer; inspect status to determine settlement")
+    @io.swagger.v3.oas.annotations.responses.ApiResponses({
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode="201", description="Created COMPLETED or DECLINED transfer", content=@io.swagger.v3.oas.annotations.media.Content(schema=@io.swagger.v3.oas.annotations.media.Schema(implementation=Transfer.class))),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode="202", description="REVIEW; funds neither moved nor reserved", content=@io.swagger.v3.oas.annotations.media.Content(schema=@io.swagger.v3.oas.annotations.media.Schema(implementation=Transfer.class))),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode="200", description="Idempotent replay of completed, reviewed or declined transfer", content=@io.swagger.v3.oas.annotations.media.Content(schema=@io.swagger.v3.oas.annotations.media.Schema(implementation=Transfer.class))),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode="409", description="Persisted balance rejection or idempotency conflict", content=@io.swagger.v3.oas.annotations.media.Content(schema=@io.swagger.v3.oas.annotations.media.Schema(implementation=dev.sentinel.shared.ApiExceptionHandler.ApiError.class))),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode="503", description="Retryable transaction failure; retry the SAME key")
+    })
     ResponseEntity<?> create(@RequestHeader("Idempotency-Key") String key, @Valid @RequestBody CreateTransferRequest request) {
         return TransferResponses.respond(transfers.transfer(key,
                 new TransferCommand(request.sourceAccountId(), request.targetAccountId(), request.amountCents())));
+    }
+    @GetMapping
+    @Operation(summary = "List transfers and actual fraud scores using a newest-first cursor")
+    TransferService.TransferPage list(@RequestParam(defaultValue = "50") @jakarta.validation.constraints.Min(1) @jakarta.validation.constraints.Max(100) int limit,
+                                      @RequestParam(required = false) UUID beforeId) {
+        return transfers.page(limit, beforeId);
     }
     @GetMapping("/{id}")
     Transfer get(@PathVariable UUID id) { return transfers.get(id); }

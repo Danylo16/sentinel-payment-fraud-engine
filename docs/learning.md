@@ -19,3 +19,10 @@ verify REVIEW. Use a separate configuration object; do not modify application.ya
 
 Explain why a REVIEW response must not call AccountFunds.move(), and why repeating its idempotency
 key must return the stored decision instead of running the rules again. Run mvn test.
+
+# Phase 4 practical task (15 minutes)
+
+In web/test/money.test.ts add a test that `centsFromEuros('123.45')` gives `12345n` and formats back
+as `€123.45`. Then identify why JSON.parse of Long.MAX_VALUE cents would lose information and why a
+client retry after an unknown response must keep BOTH the original key and the original request body.
+Run `npm --prefix web test`. Explain the boundary between display state and database money guarantees.

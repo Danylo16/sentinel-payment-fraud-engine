@@ -34,6 +34,17 @@ class AccountRepository {
                 .where(ID.eq(id)).fetchOptional(AccountRepository::map);
     }
 
+    AccountService.AccountPage page(int limit, UUID beforeId) {
+        var rows = sql.fetch("""
+                SELECT * FROM accounts WHERE account_type='CUSTOMER'
+                  AND (?::UUID IS NULL OR (created_at,id) <
+                       (SELECT created_at,id FROM accounts WHERE id=?))
+                ORDER BY created_at DESC,id DESC LIMIT ?
+                """, beforeId, beforeId, limit + 1);
+        var items = rows.stream().limit(limit).map(AccountRepository::map).toList();
+        return new AccountService.AccountPage(items, rows.size() > limit ? items.getLast().id() : null);
+    }
+
     private static Account map(Record row) {
         return new Account(row.get(ID), row.get(NAME), row.get(CURRENCY), row.get(BALANCE), row.get(CREATED));
     }

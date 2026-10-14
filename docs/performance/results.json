@@ -1,0 +1,61 @@
+{
+  "captured_at_utc": "2026-10-14T21:58:09Z",
+  "commit": "6b59cd3cf3c14d4b7c9604e2f5cdbabef3a69c99",
+  "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.39",
+  "cpu_count": 4,
+  "python": "3.12.3",
+  "method": "Closed-loop HTTP; fresh requests with unique keys; 1-cent transfers; warmed recipient relations; default fraud policy; no automatic retries. Setup is excluded. Shared database, sequential scenarios, not a saturation/capacity claim.",
+  "scenarios": [
+    {
+      "scenario": "shared_source",
+      "requests": 500,
+      "workers": 8,
+      "pairs": 1,
+      "elapsed_seconds": 8.974,
+      "requests_per_second": 55.71,
+      "latency_ms": {
+        "p50": 86.58,
+        "p95": 374.5,
+        "p99": 580.69,
+        "mean": 128.17
+      },
+      "http_counts": {
+        "201": 500
+      },
+      "status_counts": {
+        "COMPLETED": 500
+      }
+    },
+    {
+      "scenario": "independent_sources",
+      "requests": 500,
+      "workers": 8,
+      "pairs": 8,
+      "elapsed_seconds": 2.73,
+      "requests_per_second": 183.18,
+      "latency_ms": {
+        "p50": 39.52,
+        "p95": 66.78,
+        "p99": 103.47,
+        "mean": 41.96
+      },
+      "http_counts": {
+        "201": 500
+      },
+      "status_counts": {
+        "COMPLETED": 500
+      }
+    }
+  ],
+  "source_ids": [
+    "334369d7-9396-4e38-a9b7-54918027e657",
+    "6a931538-a600-4621-947f-9c8a586171e4",
+    "8998641e-2fb8-4bdf-83e5-df24e87a0056",
+    "e370e82b-994c-4000-9d16-63e883d1afb7",
+    "0ad64590-a85b-4f44-b901-25b96667b92b",
+    "c687154c-bdb9-483e-af58-149fa9be6f25",
+    "e692febe-bda2-459a-8556-bff06b22ff1e",
+    "9f3b08a4-6697-4a79-bee7-f01fd38d75bc",
+    "8d2455de-db11-4a79-8d78-7d3a1e524df9"
+  ]
+}

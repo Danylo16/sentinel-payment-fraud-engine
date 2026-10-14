@@ -1,4 +1,4 @@
-# Executed verification — Phases 2 and 3
+# Executed verification — Foundation, payments, fraud and demo console
 
 Starting Foundation commit: `79a8d06`. Phase 2 payment commit: `dcebaa28d5a103d790665d4b2f2e4c1ce6304829`.
 
@@ -65,3 +65,34 @@ The local workspace compiled every test class and ran all 21 unit cases successf
 Docker daemon, so integration and Compose results above come from actual GitHub Actions execution.
 Earlier failed CI runs exposed missing explicit TIMESTAMPTZ/JSONB parameter casts; those bindings were
 fixed before the successful run. No load/performance measurements have been made. Phase 4 remains.
+
+## Phase 4 — actual UI, build and load verification
+
+[CI run 38643977680](https://github.com/Danylo16/sentinel-payment-fraud-engine/actions/runs/38643977680)
+successfully tested executable head `519967b31768da13e6a3cd541f67b8f12824482f`:
+
+- 22 Java unit + 50 PostgreSQL integration tests = 72, with zero failures/errors/skips.
+- Three browser-money tests passed, including Long.MAX_VALUE lossless JSON round-trip.
+- TypeScript typecheck and Vite production bundle passed.
+- Two Playwright cases passed against the actual Compose Nginx/Java/PostgreSQL deployment: account
+  creation, token-protected funding, transfer, replay, ledger display, mobile overflow, REVIEW,
+  unchanged funds and session-preserved replay after browser reload. No API mocks were used.
+- Docker Compose built Java and UI images and applied V1–V4 successfully.
+- Two 500-request, eight-worker closed-loop scenarios completed every request as 201/COMPLETED.
+  Post-load global conservation, account projections and paired balanced entries passed.
+
+See docs/performance/README.md, raw results.json and EXPLAIN plans for measured conditions and limits.
+Artifacts include reports, screenshot and benchmark evidence. Local compilation, 22 Java unit tests,
+three UI tests and TypeScript/Vite build also passed; actual deployment tests ran in CI because the
+scratch workspace has no Docker daemon. Earlier browser failures exposed ambiguous select labels;
+explicit accessible names fixed them before the successful run.
+
+This is a demonstrable local simulation, not a production financial service. Demo readiness still
+requires the developer to understand and explain the locking, accounting and replay decisions.
+
+Final executable console head `49ece07a1b02cb96396fcbb9df6050b6720247f3` also passed the full workflow in
+[run 38644637428](https://github.com/Danylo16/sentinel-payment-fraud-engine/actions/runs/38644637428):
+72 Java tests, three money tests, two browser tests, Compose and all 1000 measured transfers plus
+post-load invariants. Desktop/mobile screenshots were visually inspected; source images are in
+docs/images. The repeated measurement is preserved as docs/performance/results-repeat.json.
+Subsequent screenshot/evidence documentation does not alter the tested executable behavior.

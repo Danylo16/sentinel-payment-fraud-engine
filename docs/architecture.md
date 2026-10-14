@@ -36,4 +36,13 @@ Flyway remains schema authority. Financial guarantees are SQL constraints/trigge
 coordination, not HTTP checks alone. Ledger amounts use signed BIGINT; aggregate reconciliation uses
 NUMERIC to avoid SUM overflow. System counter-account is included in money conservation.
 
-See ADR 001 for Foundation ADR 002 for payments/deadlocks/funding, and ADR 003 for fraud semantics and concurrency.
+See ADR 001 for Foundation, ADR 002 for payments/deadlocks/funding, and ADR 003 for fraud semantics and concurrency.
+
+## Browser and monitoring boundary
+
+React in web/ uses TypeScript and Vite. Nginx serves static assets and proxies /api to Java; there is
+no second business server and no permissive CORS configuration. All monetary authority remains in
+PostgreSQL. GET accounts/transfers supports bounded newest-first cursors (created_at, UUID), with V4
+indexes. UI sample counts are explicit; separate refresh requests are not a globally atomic snapshot.
+Large integer JSON is parsed losslessly and formatted with BigInt. Draft retry intent lives in
+sessionStorage, while the demo funding token stays only in memory. ADR 004 explains the choices.
