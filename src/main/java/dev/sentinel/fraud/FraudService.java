@@ -40,14 +40,15 @@ public class FraudService {
                 LEFT JOIN fraud_decisions f ON f.transfer_id=t.id
                 WHERE t.source_account_id=? AND t.operation='TRANSFER' AND t.status='COMPLETED'
                   AND COALESCE(f.evaluated_at,t.created_at) >= ?::timestamptz
-                """, source, now.minusDays(30));
+                  AND COALESCE(f.evaluated_at,t.created_at) <= ?::timestamptz
+                """, source, now.minusDays(30), now);
         var result = engine.assess(new FraudContext(amount, recent, known,
                 history.get("n", Long.class), history.get("average", BigDecimal.class)));
         var decision = new Decision(id, "rules-v1", now, result.score(), result.decision(),
                 config.reviewThreshold(), config.declineThreshold(), result.rules());
         sql.execute("""
                 INSERT INTO fraud_decisions(transfer_id,engine_version,evaluated_at,score,decision,review_threshold,decline_threshold,rules)
-                VALUES (?,?,?::timestamptz,?,?,?,?,?)
+                VALUES (?,?,?::timestamptz,?,?,?,?,?::jsonb)
                 """, id, decision.engineVersion(), now, result.score(), result.decision(),
                 config.reviewThreshold(), config.declineThreshold(), JSONB.valueOf(json.writeValueAsString(result.rules())));
         return decision;

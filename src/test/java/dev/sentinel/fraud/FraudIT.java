@@ -168,6 +168,33 @@ class FraudIT {
         assertIntegrity(()->sql.execute("INSERT INTO fraud_decisions VALUES (?,'test',clock_timestamp(),20,'APPROVE',40,70,'[]'::jsonb)",id));
     }
 
+    @Test void observationTimeIsCapturedAfterWaitingForAccountLock() throws Exception {
+        UUID a=account(),b=account(); fund(a,1000);
+        try(var connection=java.sql.DriverManager.getConnection(DB.getJdbcUrl(),DB.getUsername(),DB.getPassword());
+            var pool=Executors.newSingleThreadExecutor()) {
+            connection.setAutoCommit(false);
+            try(var statement=connection.prepareStatement("SELECT id FROM accounts WHERE id=? FOR NO KEY UPDATE")) {
+                statement.setObject(1,a); statement.executeQuery().close();
+            }
+            var pending=pool.submit(()->transfer(key(),a,b,100));
+            boolean waiting=false; long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(2);
+            try {
+                while(System.nanoTime()<deadline) {
+                    waiting=sql.fetchOne("SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE wait_event_type='Lock' AND query LIKE '%ORDER BY id FOR NO KEY UPDATE%') AS waiting").get("waiting",Boolean.class);
+                    if(waiting) break;
+                    Thread.sleep(10);
+                }
+                assertTrue(waiting,"Payment must actually be waiting for the held row lock");
+                var releasedAt=sql.fetchOne("SELECT clock_timestamp() AS now").get("now",java.time.OffsetDateTime.class);
+                connection.commit();
+                var response=pending.get(10,TimeUnit.SECONDS); assertEquals(201,response.statusCode());
+                var decision=body(get("/transfers/"+body(response).get("id").asText()+"/fraud"));
+                var evaluatedAt=java.time.OffsetDateTime.parse(decision.get("evaluatedAt").asText());
+                assertFalse(evaluatedAt.isBefore(releasedAt),"Fraud observation must use the time AFTER lock acquisition");
+            } finally { connection.rollback(); }
+        }
+    }
+
     private UUID account() throws Exception {
         var response = send("POST", "/accounts", Map.of("name", "Demo " + key()), Map.of());
         assertEquals(201, response.statusCode(), response.body()); return UUID.fromString(body(response).get("id").asText());
