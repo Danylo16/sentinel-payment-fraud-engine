@@ -84,15 +84,15 @@ class AccountsIT {
         assertEquals("NOT_FOUND", json.readTree(response.body()).get("code").asText());
     }
     @Test void databaseRejectsNegativeBalance() {
-        assertThrows(org.jooq.exception.DataAccessException.class, () -> sql.execute(
+        assertThrows(org.springframework.dao.DataIntegrityViolationException.class, () -> sql.execute(
                 "insert into accounts(id,name,balance_cents) values (?, 'Demo', -1)", UUID.randomUUID()));
     }
     @Test void databaseRejectsOtherCurrencies() {
-        assertThrows(org.jooq.exception.DataAccessException.class, () -> sql.execute(
+        assertThrows(org.springframework.dao.DataIntegrityViolationException.class, () -> sql.execute(
                 "insert into accounts(id,name,currency) values (?, 'Demo', 'USD')", UUID.randomUUID()));
     }
     @Test void databaseRejectsBlankName() {
-        assertThrows(org.jooq.exception.DataAccessException.class, () -> sql.execute(
+        assertThrows(org.springframework.dao.DataIntegrityViolationException.class, () -> sql.execute(
                 "insert into accounts(id,name) values (?, '   ')", UUID.randomUUID()));
     }
     @Test void servesOpenApiContract() throws Exception {

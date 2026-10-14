@@ -15,4 +15,12 @@ class AccountNameTest {
     @Test void accepts100UnicodeCodePoints() {
         assertEquals(100, new AccountName("🚗".repeat(100)).value().codePointCount(0, 200));
     }
+    @Test void rejects101UnicodeCodePoints() {
+    String name = "🚗".repeat(101);
+
+    assertThrows(
+            IllegalArgumentException.class,
+            () -> new AccountName(name)
+    );
+}
 }
