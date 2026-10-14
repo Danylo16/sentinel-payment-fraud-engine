@@ -1,12 +1,25 @@
 # Sentinel — Payment Processing & Fraud Detection Engine
 
-Java backend simulation for EUR payments and rule-based fraud detection. No bank accounts,
-payment gateways or real funds.
+Sentinel is a Java 21 payment-processing and rule-based fraud-detection simulator. A modular
+monolith built with Spring Boot, PostgreSQL and jOOQ, it combines atomic EUR transfers, double-entry
+movement accounting, persistent idempotency and immutable risk/audit history. A React/TypeScript
+operations console displays actual balances, transfers and decisions.
 
-**Demo build: atomic payments, immutable ledger, configurable fraud rules and a React operations console.**
-Simulation only: risk weights are educational, not calibrated to real fraud data.
+**Local simulation only:** no real funds, bank accounts or payment gateways. Fraud weights are
+illustrative and uncalibrated; the score is not a fraud probability. No ML is used.
+
+## Implemented capabilities
+
+- Atomic transfers with ordered PostgreSQL row locks, guarded integer arithmetic and rollback.
+- Double-entry ledger with SQL-enforced conservation, balance projections and append-only history.
+- Persistent idempotency, including concurrent duplicates, stable rejected results and key conflicts.
+- Four configurable fraud rules, bounded scoring, and REVIEW/DECLINE outcomes that never move funds.
+- REST/OpenAPI, cursor-paginated monitoring and a responsive console with exact monetary parsing.
+- GitHub Actions verification: 72 Java cases, three UI precision cases and two API-backed browser cases.
+- Reproducible localhost load measurements with raw latency results and post-run accounting checks.
+
 Executed checks and their limitations: [verification](docs/verification.md).
-Console previews from actual CI: [desktop](docs/images/sentinel-console.png) · [mobile](docs/images/sentinel-mobile.png).
+Actual CI previews: [desktop console](docs/images/sentinel-console.png) · [mobile console](docs/images/sentinel-mobile.png).
 
 ## Stack
 
@@ -14,6 +27,21 @@ Java 21, Spring Boot 4.1.1, PostgreSQL 17.6, jOOQ 3.20.20, Flyway, Maven 3.9.11,
 JUnit 5.13.4, Testcontainers 1.21.4, Docker Compose, springdoc 3.0.0 and GitHub Actions.
 The Maven Alpine build image avoids a failing local JDK image observed during Foundation setup.
 The runtime image is Temurin 21 JRE, running as a non-root user. The optional browser console uses React 19, TypeScript 7 and Vite 8; Node 24 builds locked dependencies and Nginx serves static assets.
+
+## Language responsibilities
+
+| Language | Location | Responsibility |
+| --- | --- | --- |
+| Java 21 | `src/main/java` | Accounts, payment transactions, ledger, fraud rules, audit and REST API |
+| TypeScript | `web/src`, `web/e2e` | React console, exact cent handling and Playwright browser tests |
+| SQL | `src/main/resources/db/migration` | Schema, migrations, constraints and accounting/lifecycle triggers |
+| Python 3.11+ | `scripts/load-test.py` | Local HTTP load generation and actual throughput/latency reporting |
+| Shell | `scripts/compose-smoke.sh` | Isolated Compose startup, HTTP/browser checks and post-load reconciliation |
+
+Python is verification tooling, not an application backend or fraud model. The driver uses only the
+standard library, sends parallel one-cent transfers under the default fraud policy, and reports
+p50/p95/p99 latency, HTTP/status counts and throughput. It refuses non-local targets. Python is not
+required for starting the normal Compose application.
 
 ## Architecture
 
