@@ -17,7 +17,8 @@ class TransferController {
                                  @NotNull @Positive Long amountCents) {}
     private final TransferService transfers;
     private final AuditService audit;
-    TransferController(TransferService transfers, AuditService audit) { this.transfers = transfers; this.audit = audit; }
+    private final dev.sentinel.fraud.FraudService fraud;
+    TransferController(TransferService transfers, AuditService audit, dev.sentinel.fraud.FraudService fraud) { this.transfers = transfers; this.audit = audit; this.fraud = fraud; }
 
     @PostMapping
     @Operation(summary = "Atomically transfer EUR cents between customer accounts")
@@ -27,6 +28,14 @@ class TransferController {
     }
     @GetMapping("/{id}")
     Transfer get(@PathVariable UUID id) { return transfers.get(id); }
+    @GetMapping("/{id}/fraud")
+    @Operation(summary = "Read the immutable fraud decision; funding and legacy transfers return 404")
+    dev.sentinel.fraud.FraudService.Decision fraud(@PathVariable UUID id) {
+        transfers.get(id);
+        var decision = fraud.find(id);
+        if (decision == null) throw new dev.sentinel.shared.ResourceNotFoundException("Fraud decision not found");
+        return decision;
+    }
     @GetMapping("/{id}/audit")
     List<AuditService.AuditEvent> audit(@PathVariable UUID id) { transfers.get(id); return audit.history(id); }
 }

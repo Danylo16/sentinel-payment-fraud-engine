@@ -17,8 +17,9 @@ public class TransferService {
     private final AccountFunds accounts;
     private final LedgerService ledger;
     private final AuditService audit;
-    public TransferService(DSLContext sql, AccountFunds accounts, LedgerService ledger, AuditService audit) {
-        this.sql = sql; this.accounts = accounts; this.ledger = ledger; this.audit = audit;
+    private final dev.sentinel.fraud.FraudService fraud;
+    public TransferService(DSLContext sql, AccountFunds accounts, LedgerService ledger, AuditService audit, dev.sentinel.fraud.FraudService fraud) {
+        this.sql = sql; this.accounts = accounts; this.ledger = ledger; this.audit = audit; this.fraud = fraud;
     }
 
     @Transactional(timeout = 10)
@@ -56,6 +57,15 @@ public class TransferService {
         accounts.requireCustomer(target);
         if (operation.equals("TRANSFER")) accounts.requireCustomer(source);
         long amount = request.amountCents();
+        if (operation.equals("TRANSFER")) {
+            var decision = fraud.evaluate(id, source.id(), target.id(), amount);
+            if (!decision.decision().equals("APPROVE")) {
+                String status = decision.decision().equals("REVIEW") ? "REVIEW" : "DECLINED";
+                sql.execute("UPDATE transfers SET status = ? WHERE id = ?", status, id);
+                audit.append(id, status);
+                return new TransferResult(get(id), false);
+            }
+        }
         String failure = null;
         if (operation.equals("TRANSFER") && source.balanceCents() < amount) failure = "INSUFFICIENT_FUNDS";
         else if (target.balanceCents() > Long.MAX_VALUE - amount

@@ -33,6 +33,7 @@ class PaymentsIT {
 
     @BeforeAll void start() {
         app = SpringApplication.run(SentinelApplication.class, "--server.port=0", "--spring.profiles.active=demo",
+                "--sentinel.fraud.velocity-limit=100", // Keep accounting stress tests separate from velocity policy.
                 "--sentinel.demo.funding-token=" + TOKEN, "--spring.datasource.url=" + DB.getJdbcUrl(),
                 "--spring.datasource.username=" + DB.getUsername(), "--spring.datasource.password=" + DB.getPassword());
         sql = app.getBean(DSLContext.class);
