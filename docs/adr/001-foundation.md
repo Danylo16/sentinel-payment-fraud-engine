@@ -4,7 +4,7 @@ Status: accepted for Phase 1.
 
 - Java 21 and Maven: known target runtime, conventional lifecycle, separate unit/integration stages.
 - Boot 4.1.1: stable release verified against Maven Central metadata and official release announcement.
-  JUnit 5.13.4 explicitly overrides Boot's JUnit 6 BOM to satisfy the learning requirement.
+  JUnit 5.13.4 explicitly overrides Boot's JUnit 6 BOM to keep the tests on JUnit 5.
   Spring 7's SpringExtension requires JUnit 6 and cannot be used with this override. Integration
   tests therefore start the real SpringApplication in plain JUnit 5 lifecycle methods, use HTTP
   against a random port and close the context afterward. No spring-boot-starter-test dependency

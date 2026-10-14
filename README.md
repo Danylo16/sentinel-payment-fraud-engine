@@ -1,6 +1,6 @@
 # Sentinel — Payment Processing & Fraud Detection Engine
 
-Educational Java fintech backend for an internship portfolio. Simulation only; no bank accounts,
+Java backend simulation for EUR payments and rule-based fraud detection. No bank accounts,
 payment gateways or real funds.
 
 **Demo build: atomic payments, immutable ledger, configurable fraud rules and a React operations console.**
@@ -222,6 +222,4 @@ No authentication for customer API, KYC/AML, gateway integrations, FX, fees, res
 manual review workflow, production roles/backups or distributed operations. No production capacity claims.
 Funding is an accounting simulation, not an external settlement integration.
 
-The load driver and review process are documented in [performance](docs/performance/README.md) and [code review](docs/code-review.md). Measurement results and limitations are recorded after actual execution. Portfolio text and interview preparation: [docs/portfolio.md](docs/portfolio.md).
-
-Learning exercise: [docs/learning.md](docs/learning.md).
+The load driver and review process are documented in [performance](docs/performance/README.md) and [code review](docs/code-review.md). Measurement results and limitations are recorded after actual execution.

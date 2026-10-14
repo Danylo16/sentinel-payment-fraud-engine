@@ -27,9 +27,6 @@ used the protected demo funding endpoint, transferred 100 cents, replayed the sa
 balances 900/100, total balance zero and exactly two zero-sum entries for the transfer.
 Its volume was isolated and removed after the check. No performance/load tests have been run.
 
-Older files under docs/test-reports belong to historical Foundation debugging and are superseded
-by the executed CI evidence above. They do not describe the current Phase 2 result.
-
 ## Phase 3 — executed fraud verification
 
 Executable commit: `eee97382c8fcbf7548f5036e094f89ce8483560d`.
@@ -87,8 +84,7 @@ three UI tests and TypeScript/Vite build also passed; actual deployment tests ra
 scratch workspace has no Docker daemon. Earlier browser failures exposed ambiguous select labels;
 explicit accessible names fixed them before the successful run.
 
-This is a demonstrable local simulation, not a production financial service. Demo readiness still
-requires the developer to understand and explain the locking, accounting and replay decisions.
+This is a local simulation, not a production financial service.
 
 Final executable console head `49ece07a1b02cb96396fcbb9df6050b6720247f3` also passed the full workflow in
 [run 38644637428](https://github.com/Danylo16/sentinel-payment-fraud-engine/actions/runs/38644637428):

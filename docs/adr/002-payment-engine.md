@@ -53,7 +53,7 @@ the counter-account stay zero; customers are never funded by modifying balances 
 
 The HTTP funding controller exists only in the demo profile and requires a configured >=16-character
 token. Startup fails if demo is enabled without a token. Compose binds to loopback. This is protection
-for a local learning tool, not authentication for a financial product.
+for a local simulation, not authentication for a financial product.
 
 Positive amounts can use the full BIGINT range. Customer debit checks, recipient MAX_VALUE bounds,
 and SYSTEM_CONTRA MIN_VALUE bounds precede guarded SQL updates. Faults after either balance update or
