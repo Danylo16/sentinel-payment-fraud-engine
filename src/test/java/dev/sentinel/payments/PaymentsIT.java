@@ -228,6 +228,26 @@ class PaymentsIT {
         assertEquals(201, transfer(k, a, b, 100).statusCode());
     }
 
+    @Test void monitoringPagesExcludeContraAndReturnRealScoresWithoutDuplicates() throws Exception {
+        UUID a=account(),b=account(); fund(a,1000);
+        UUID id=UUID.fromString(body(transfer(key(),a,b,100)).get("id").asText());
+        var page=body(get("/transfers?limit=1"));
+        assertEquals(1,page.get("items").size());
+        assertEquals(id.toString(),page.get("items").get(0).get("transfer").get("id").asText());
+        assertEquals(20,page.get("items").get(0).get("riskScore").asInt());
+        assertEquals("APPROVE",page.get("items").get(0).get("fraudDecision").asText());
+        assertFalse(page.get("nextBeforeId").isNull());
+        var older=body(get("/transfers?limit=1&beforeId="+page.get("nextBeforeId").asText()));
+        assertNotEquals(id.toString(),older.get("items").get(0).get("transfer").get("id").asText());
+        var accountPage=body(get("/accounts?limit=100")); Set<String> ids=new HashSet<>();
+        for(var item:accountPage.get("items")) ids.add(item.get("id").asText());
+        assertTrue(ids.contains(a.toString())); assertTrue(ids.contains(b.toString()));
+        assertFalse(ids.contains(AccountFunds.SYSTEM_CONTRA.toString()));
+        assertEquals(400,get("/accounts?limit=0").statusCode());
+        assertEquals(400,get("/transfers?limit=101").statusCode());
+        assertEquals(404,get("/transfers?beforeId="+UUID.randomUUID()).statusCode());
+    }
+
     private UUID account() throws Exception {
         var response = send("POST", "/accounts", Map.of("name", "Demo " + key()), Map.of());
         assertEquals(201, response.statusCode(), response.body()); return UUID.fromString(body(response).get("id").asText());

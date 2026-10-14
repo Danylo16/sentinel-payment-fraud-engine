@@ -79,3 +79,19 @@ curl --fail --silent "http://127.0.0.1:8080/accounts/$c" | jq -e '.balanceCents 
 [[ "$(compose exec -T db psql -U sentinel -d sentinel -Atc "SELECT count(*) FROM ledger_entries WHERE transfer_id IN ('$review_id','$decline_id')")" == 0 ]]
 [[ "$(compose exec -T db psql -U sentinel -d sentinel -Atc 'SELECT sum(balance_cents) FROM accounts')" == 0 ]]
 echo 'PASS: Compose migrations, funding, APPROVE/REVIEW/DECLINE, replay, balances and ledger conservation'
+# UI tests use this actual Nginx + Java + PostgreSQL deployment, not API mocks.
+if [[ "${RUN_UI_TESTS:-false}" == "true" ]]; then
+    UI_BASE_URL=http://127.0.0.1:5173 npm --prefix web run test:e2e
+fi
+if [[ "${RUN_LOAD_TEST:-false}" == "true" ]]; then
+    python3 scripts/load-test.py --requests 500 --workers 8
+    [[ "$(compose exec -T db psql -U sentinel -d sentinel -Atc 'SELECT sum(balance_cents) FROM accounts')" == 0 ]]
+    [[ "$(compose exec -T db psql -U sentinel -d sentinel -Atc "SELECT count(*) FROM accounts a WHERE a.balance_cents::numeric<>(SELECT COALESCE(sum(signed_cents),0) FROM ledger_entries WHERE account_id=a.id)")" == 0 ]]
+    [[ "$(compose exec -T db psql -U sentinel -d sentinel -Atc "SELECT count(*) FROM (SELECT transfer_id FROM ledger_entries GROUP BY transfer_id HAVING sum(signed_cents)<>0 OR count(*)<>2) broken")" == 0 ]]
+    source_id=$(jq -r '.source_ids[0]' target/performance/results.json)
+    [[ "$source_id" =~ ^[0-9a-f-]{36}$ ]]
+    compose exec -T db psql -U sentinel -d sentinel -Atc "EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) SELECT COALESCE(sum(signed_cents),0) FROM ledger_entries WHERE account_id='$source_id'" > target/performance/ledger-plan.json
+    compose exec -T db psql -U sentinel -d sentinel -Atc "EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) SELECT count(*) FROM fraud_decisions f JOIN transfers t ON t.id=f.transfer_id WHERE t.source_account_id='$source_id' AND f.evaluated_at>=clock_timestamp()-interval '60 seconds'" > target/performance/velocity-plan.json
+    compose exec -T db psql -U sentinel -d sentinel -Atc 'SELECT version()' > target/performance/postgres-version.txt
+    echo 'PASS: Load test completed all requests; balances, account projections and ledger invariants hold'
+fi
