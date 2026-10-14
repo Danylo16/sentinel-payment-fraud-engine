@@ -19,7 +19,7 @@ class BalanceLimitsIT {
     @Container static final PostgreSQLContainer<?> DB = new PostgreSQLContainer<>("postgres:17.6-alpine");
     private ConfigurableApplicationContext app;
     @BeforeAll void start() {
-        app = SpringApplication.run(SentinelApplication.class, "--server.port=0",
+        app = SpringApplication.run(SentinelApplication.class, "--server.port=0", "--spring.profiles.active=default",
                 "--spring.datasource.url=" + DB.getJdbcUrl(), "--spring.datasource.username=" + DB.getUsername(),
                 "--spring.datasource.password=" + DB.getPassword());
     }
