@@ -150,7 +150,7 @@ mvn verify  # Unit + real PostgreSQL Testcontainers tests
 are independent of Compose data. Integration checks include HTTP contracts, accounting constraints,
 parallel identical requests, overspending, opposite-direction transfers, failure during the second
 ledger write, stable rejection replay, lock timeout, immutable history and integer bounds.
-CI runs verify and retains reports. Execution status is in [verification](docs/verification.md).
+CI runs verify, a Docker Compose payment smoke check, and retains reports. Execution status is in [verification](docs/verification.md).
 
 ## Limits and next steps
 
