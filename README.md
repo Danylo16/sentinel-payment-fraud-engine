@@ -25,8 +25,7 @@ Actual CI previews: [desktop console](docs/images/sentinel-console.png) · [mobi
 
 Java 21, Spring Boot 4.1.1, PostgreSQL 17.6, jOOQ 3.20.20, Flyway, Maven 3.9.11,
 JUnit 5.13.4, Testcontainers 1.21.4, Docker Compose, springdoc 3.0.0 and GitHub Actions.
-The Maven Alpine build image avoids a failing local JDK image observed during Foundation setup.
-The runtime image is Temurin 21 JRE, running as a non-root user. The optional browser console uses React 19, TypeScript 7 and Vite 8; Node 24 builds locked dependencies and Nginx serves static assets.
+The Maven Alpine image builds the application; a Temurin 21 JRE image runs it as a non-root user. The optional browser console uses React 19, TypeScript 7 and Vite 8; Node 24 builds locked dependencies and Nginx serves static assets.
 
 ## Language responsibilities
 
@@ -78,8 +77,10 @@ accounting guarantees. [Architecture](docs/architecture.md) describes module bou
 | audit_events | Identity ID, transfer ID, status event, time | Append-only received/outcome history |
 | fraud_decisions | Transfer ID, version, evaluation time, score, decision, thresholds, rule hits | Immutable; score and status consistency |
 
-Flyway V1 is unchanged. V2 introduces accounting and refuses pre-existing unexplained nonzero balances.
-Accounts created during Foundation with zero balance migrate normally. No existing data needs deletion. V3 preserves Phase 2 balances/history, adds fraud requirements for new customer transfers, and leaves funding and legacy transfers without a fabricated decision.
+Flyway V1 remains unchanged. V2 adds accounting and rejects unexplained legacy nonzero balances;
+zero-balance accounts migrate without data deletion. V3 preserves existing balances and history,
+requires fraud decisions for new customer transfers, and does not fabricate decisions for funding
+or legacy transfers.
 
 ## Run
 
