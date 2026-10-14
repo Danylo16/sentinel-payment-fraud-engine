@@ -19,6 +19,9 @@ not connect to real banks or process real money.
 - Verified financial invariants, concurrent requests and injected failures using JUnit 5/Testcontainers
   and CI; added a React/TypeScript console with exact monetary parsing and Playwright API-backed tests.
 
+Executed proof: 72 Java tests, three UI precision tests and two actual-deployment browser cases passed
+in CI run 38643977680. Load results are documented separately without production capacity claims.
+
 ## Five technical interview questions
 
 1. Two requests each want to spend 80 EUR from a 100 EUR account. Where does the lock occur, what does

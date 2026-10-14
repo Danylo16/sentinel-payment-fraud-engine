@@ -30,6 +30,7 @@ test('real UI creates accounts, funds, transfers and safely replays', async ({ p
   await page.setViewportSize({width:390,height:844});
   await expect(page.getByRole('heading',{name:'Accounts & ledger'})).toBeVisible();
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBeTruthy();
+  await page.screenshot({path:'test-results/sentinel-mobile.png',fullPage:true});
 });
 
 test('review request stays unexecuted through replay and browser reload', async ({ page, request }) => {
@@ -53,5 +54,6 @@ test('review request stays unexecuted through replay and browser reload', async 
   const history=await (await request.get(`/api/accounts/${b.id}/transactions`)).json();
   expect(history.items).toHaveLength(0);
   await expect(page.locator('.audit li')).toHaveCount(2);
+  await page.evaluate(()=>window.scrollTo(0,0));
   await page.screenshot({path:'test-results/sentinel-console.png',fullPage:true});
 });
