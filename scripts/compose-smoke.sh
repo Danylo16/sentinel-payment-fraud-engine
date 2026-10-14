@@ -44,4 +44,38 @@ curl --fail --silent "http://127.0.0.1:8080/accounts/$a" | jq -e '.balanceCents 
 curl --fail --silent "http://127.0.0.1:8080/accounts/$b" | jq -e '.balanceCents == 100' >/dev/null
 [[ "$(compose exec -T db psql -U sentinel -d sentinel -Atc 'SELECT sum(balance_cents) FROM accounts')" == 0 ]]
 [[ "$(compose exec -T db psql -U sentinel -d sentinel -Atc "SELECT count(*)=2 AND sum(signed_cents)=0 FROM ledger_entries WHERE transfer_id='$id'")" == t ]]
-echo 'PASS: Compose startup, migration, protected funding, transfer, replay, balances and ledger conservation'
+curl --fail --silent "http://127.0.0.1:8080/transfers/$id/fraud" | jq -e '.decision == "APPROVE" and .score == 20' >/dev/null
+# Fresh source/recipient produces REVIEW from large amount + new recipient.
+r=$(curl --fail --silent -H 'Content-Type: application/json' -d '{"name":"Review source"}' http://127.0.0.1:8080/accounts | jq -r .id)
+c=$(curl --fail --silent -H 'Content-Type: application/json' -d '{"name":"Fresh recipient"}' http://127.0.0.1:8080/accounts | jq -r .id)
+curl --fail --silent -H 'Content-Type: application/json' -H "X-Demo-Token: $DEMO_FUNDING_TOKEN" \
+    -H "Idempotency-Key: $(openssl rand -hex 16)" -d "{\"targetAccountId\":\"$r\",\"amountCents\":200000}" \
+    http://127.0.0.1:8080/demo/fundings >/dev/null
+review_key=$(openssl rand -hex 16)
+review_request="{\"sourceAccountId\":\"$r\",\"targetAccountId\":\"$c\",\"amountCents\":100000}"
+status=$(curl --silent --show-error -o "$body_file" -w '%{http_code}' -H 'Content-Type: application/json' \
+    -H "Idempotency-Key: $review_key" -d "$review_request" http://127.0.0.1:8080/transfers)
+[[ "$status" == 202 && "$(jq -r .status "$body_file")" == REVIEW ]]
+review_id=$(jq -r .id "$body_file")
+curl --fail --silent "http://127.0.0.1:8080/transfers/$review_id/fraud" | jq -e '.decision == "REVIEW" and .score == 55' >/dev/null
+status=$(curl --silent --show-error -o "$body_file" -w '%{http_code}' -H 'Content-Type: application/json' \
+    -H "Idempotency-Key: $review_key" -d "$review_request" http://127.0.0.1:8080/transfers)
+[[ "$status" == 200 && "$(jq -r .id "$body_file")" == "$review_id" ]]
+curl --fail --silent "http://127.0.0.1:8080/accounts/$r" | jq -e '.balanceCents == 200000' >/dev/null
+# Five completed samples then a large transfer to a fresh recipient produces DECLINE.
+for _ in $(seq 1 4); do
+    curl --fail --silent -H 'Content-Type: application/json' -H "Idempotency-Key: $(openssl rand -hex 16)" \
+        -d "$request" http://127.0.0.1:8080/transfers | jq -e '.status == "COMPLETED"' >/dev/null
+done
+status=$(curl --silent --show-error -o "$body_file" -w '%{http_code}' -H 'Content-Type: application/json' \
+    -H "Idempotency-Key: $(openssl rand -hex 16)" \
+    -d "{\"sourceAccountId\":\"$a\",\"targetAccountId\":\"$c\",\"amountCents\":100000}" http://127.0.0.1:8080/transfers)
+[[ "$status" == 201 && "$(jq -r .status "$body_file")" == DECLINED ]]
+decline_id=$(jq -r .id "$body_file")
+curl --fail --silent "http://127.0.0.1:8080/transfers/$decline_id/fraud" | jq -e '.decision == "DECLINE" and .score == 100' >/dev/null
+curl --fail --silent "http://127.0.0.1:8080/accounts/$a" | jq -e '.balanceCents == 500' >/dev/null
+curl --fail --silent "http://127.0.0.1:8080/accounts/$b" | jq -e '.balanceCents == 500' >/dev/null
+curl --fail --silent "http://127.0.0.1:8080/accounts/$c" | jq -e '.balanceCents == 0' >/dev/null
+[[ "$(compose exec -T db psql -U sentinel -d sentinel -Atc "SELECT count(*) FROM ledger_entries WHERE transfer_id IN ('$review_id','$decline_id')")" == 0 ]]
+[[ "$(compose exec -T db psql -U sentinel -d sentinel -Atc 'SELECT sum(balance_cents) FROM accounts')" == 0 ]]
+echo 'PASS: Compose migrations, funding, APPROVE/REVIEW/DECLINE, replay, balances and ledger conservation'

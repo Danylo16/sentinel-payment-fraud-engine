@@ -22,12 +22,12 @@ public class TransferService {
         this.sql = sql; this.accounts = accounts; this.ledger = ledger; this.audit = audit; this.fraud = fraud;
     }
 
-    @Transactional(timeout = 10)
+    @Transactional(timeout = 10, isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public TransferResult transfer(String key, TransferCommand request) {
         return execute(key, request, "TRANSFER");
     }
 
-    @Transactional(timeout = 10)
+    @Transactional(timeout = 10, isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public TransferResult fundDemo(String key, UUID target, long amount) {
         return execute(key, new TransferCommand(AccountFunds.SYSTEM_CONTRA, target, amount), "FUNDING");
     }

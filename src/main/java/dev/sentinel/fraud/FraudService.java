@@ -29,7 +29,7 @@ public class FraudService {
         OffsetDateTime now = sql.fetchOne("SELECT clock_timestamp() AS now").get("now", OffsetDateTime.class);
         long recent = sql.fetchOne("""
                 SELECT count(*) AS n FROM fraud_decisions f JOIN transfers t ON t.id=f.transfer_id
-                WHERE t.source_account_id=? AND f.evaluated_at >= ? AND f.evaluated_at <= ?
+                WHERE t.source_account_id=? AND f.evaluated_at >= ?::timestamptz AND f.evaluated_at <= ?::timestamptz
                 """, source, now.minusSeconds(config.velocityWindowSeconds()), now).get("n", Long.class);
         boolean known = sql.fetchOne("""
                 SELECT EXISTS (SELECT 1 FROM transfers WHERE source_account_id=? AND target_account_id=?
@@ -39,7 +39,7 @@ public class FraudService {
                 SELECT count(*) AS n, avg(t.amount_cents) AS average FROM transfers t
                 LEFT JOIN fraud_decisions f ON f.transfer_id=t.id
                 WHERE t.source_account_id=? AND t.operation='TRANSFER' AND t.status='COMPLETED'
-                  AND COALESCE(f.evaluated_at,t.created_at) >= ?
+                  AND COALESCE(f.evaluated_at,t.created_at) >= ?::timestamptz
                 """, source, now.minusDays(30));
         var result = engine.assess(new FraudContext(amount, recent, known,
                 history.get("n", Long.class), history.get("average", BigDecimal.class)));
@@ -47,7 +47,7 @@ public class FraudService {
                 config.reviewThreshold(), config.declineThreshold(), result.rules());
         sql.execute("""
                 INSERT INTO fraud_decisions(transfer_id,engine_version,evaluated_at,score,decision,review_threshold,decline_threshold,rules)
-                VALUES (?,?,?,?,?,?,?,?)
+                VALUES (?,?,?::timestamptz,?,?,?,?,?)
                 """, id, decision.engineVersion(), now, result.score(), result.decision(),
                 config.reviewThreshold(), config.declineThreshold(), JSONB.valueOf(json.writeValueAsString(result.rules())));
         return decision;
