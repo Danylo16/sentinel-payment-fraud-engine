@@ -23,6 +23,8 @@ services:
       DB_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-sentinel}
       DB_USER: ${POSTGRES_USER:-sentinel}
       DB_PASSWORD: ${POSTGRES_PASSWORD:?Copy .env.example to .env first}
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-default}
+      DEMO_FUNDING_TOKEN: ${DEMO_FUNDING_TOKEN:-}
     ports:
       - "127.0.0.1:${SERVER_PORT:-8080}:8080"
 volumes:

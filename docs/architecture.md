@@ -1,75 +1,39 @@
-# Architecture and phase gates
+# Sentinel architecture
 
-## Current implementation
+## Implemented boundaries
 
-`accounts` owns its API, service and package-private repository. The service is the public module boundary.
-`shared` owns HTTP errors, not business state. Spring constructor injection is used for real dependencies.
-jOOQ typed fields are explicitly declared for the single table. All values are bound parameters.
-Flyway is the source of truth for SQL schema. jOOQ code generation is deferred until schema complexity justifies it.
-
-## Planned modules and tables — not implemented
-
-| Module | Responsibility | Planned tables |
+| Module | Owns | Called by |
 | --- | --- | --- |
-| accounts | Account identity and transactional balance projection | accounts |
-| payments | Idempotency, lifecycle and transfer orchestration | transfers |
-| ledger | Balanced immutable accounting | ledger_entries |
-| fraud | Rule evaluation and persisted decisions | fraud_decisions, fraud_rule_results |
-| audit | Append-only status and decision history | audit_events |
+| accounts | Identity/API, guarded balances, ordered account locks | payments and HTTP |
+| payments | Request claim, idempotency, lifecycle and transaction orchestration | HTTP |
+| ledger | Paired immutable entries and paginated history | payments and accounts HTTP |
+| audit | Append-only status events | payments and transfer HTTP |
+| fraud | Not implemented yet | Planned: payments |
 
-Use one database transaction for payment decisions and monetary changes. No network calls inside it.
-Each module owns its writes; payments orchestrates synchronous calls into ledger/accounts/fraud/audit.
-Avoid public generic repositories and services that only relay method calls.
+One PostgreSQL database, one application. All payment mutations participate in the same transaction.
+`AccountFunds`, ledger writes and audit writes require an existing transaction (MANDATORY).
+Services own business use cases; controllers own HTTP status/headers and input validation.
 
-## Planned payment algorithm
+## Transfer sequence
 
-1. Validate amount > 0, distinct accounts, EUR, key length and request structure.
-2. Insert an idempotency record with unique key. Concurrent duplicate inserts synchronize through PostgreSQL;
-   compare persisted request parameters before returning a result. Initially keys are globally scoped because
-   this local demo has no authenticated principal. Document that limitation.
-3. Lock both account rows using ascending UUID order with `FOR UPDATE`. Every money-moving use case,
-   including demo funding and future manual review, must use the same order.
-4. Evaluate fraud under the source account lock so simultaneous attempts cannot evade velocity counters.
-   Specify which persisted attempts count, use database time, and avoid counting an idempotent replay.
-5. APPROVE: guarded debit (`balance >= amount`), credit with overflow protection, paired ledger writes,
-   status and audit in the same transaction. REVIEW: persist pending state and decision, with no debit.
-   DECLINE: persist rejected state and decision, with no ledger.
-6. Commit before reporting success. Database lock timeouts/deadlock failures roll back and return a retryable
-   error; clients retry with the same key. Any server-side retry must encompass the entire transaction,
-   be bounded and happen outside the transactional method.
+1. Validate source/target IDs, positive long cents and key format.
+2. Replay a known immutable result if present. For a new request, ensure both accounts exist and claim
+   the unique key using INSERT ON CONFLICT DO NOTHING. A concurrent loser reads the winning result.
+3. Write RECEIVED audit event. Lock both accounts in ascending PostgreSQL UUID order with
+   FOR NO KEY UPDATE (compatible with FK KEY SHARE locks).
+4. Recheck account types, available funds and numeric limits under locks.
+5. REJECTED: persist reason and audit, no monetary entries. COMPLETED: guarded balances, negative
+   payer entry, positive payee entry, status and audit, all in the same transaction.
+6. Deferred database checks validate the final committed state. Only then can the service return.
 
-Ordered locks remove the common A→B/B→A deadlock; they do not prove absence of all future deadlocks.
-Insufficient funds is a persisted business rejection, not an uncaught exception that deletes its idempotency record.
-An unexpected database failure rolls everything back and may leave no result; retry remains safe.
+No fraud statuses exist yet. Phase 3 must add REVIEW/DECLINE through a new migration and prohibit
+ledger entries for those outcomes. Ordinary key replay must never complete a pending REVIEW.
 
-## Ledger and funding plan
+## Data ownership and constraints
 
-Customer accounts cannot be negative. A separate explicit SYSTEM_CONTRA account may be negative, with a
-constraint enforcing this exception only for its type. Starting sum is zero: demo funding credits a customer
-and debits SYSTEM_CONTRA by the same amount. This represents external funding through an accounting
-counterpart, not a money creation operation hidden in a customer balance update.
+Hand-declared jOOQ fields in accounts and explicit bound SQL in payments keep locking visible.
+Flyway remains schema authority. Financial guarantees are SQL constraints/triggers plus service
+coordination, not HTTP checks alone. Ledger amounts use signed BIGINT; aggregate reconciliation uses
+NUMERIC to avoid SUM overflow. System counter-account is included in money conservation.
 
-Funding will only be present in an explicitly enabled demo profile and protected by local-only operation.
-An unlimited negative customer balance is never permitted. There is no funding in Phase 1.
-
-Ledger must forbid UPDATE/DELETE at the database level. A deferred constraint trigger will check both
-zero-sum and exactly two entries per completed transfer at commit. Tests must prove these constraints even
-when Java services are bypassed. A database ownership role can still alter constraints, so immutability
-claims are relative to the application role, not a malicious database administrator.
-
-## Lifecycle plan
-
-`RECEIVED` is internal to creation. Persisted terminal outcomes: `COMPLETED`, `DECLINED`, `REJECTED`
-(for invalid business conditions such as insufficient balance); `REVIEW` is pending. There is no manual
-review endpoint in the initial fraud MVP. REVIEW cannot be completed by an ordinary retry. If manual
-approval is added, re-lock accounts and recheck funds/conditions in a fresh transaction; do not reuse an
-old balance or treat REVIEW as pre-authorized payment.
-
-## Gates
-
-Phase 1: Java 21 build, unit tests, PostgreSQL migration/constraint/API tests pass.
-Phase 2: ledger invariants, rollback fault injection, identical concurrent requests and overspending tests pass.
-Phase 3: rule boundaries, scoring, serialized velocity behavior and REVIEW isolation tests pass.
-Phase 4: Docker smoke run, remote CI, measured load and documentation reproduction succeed.
-
-Do not claim the project ready for CV until all four gates are supported by executed checks.
+See ADR 001 for Foundation and ADR 002 for decisions, tradeoffs, deadlocks and funding protection.

@@ -35,7 +35,7 @@ class AccountsIT {
     @BeforeAll void startApplication() {
         // Boot 4's SpringExtension requires JUnit 6. Plain JUnit 5 can still test a real application.
         application = SpringApplication.run(SentinelApplication.class,
-                "--server.port=0", "--spring.datasource.url=" + DB.getJdbcUrl(),
+                "--server.port=0", "--spring.profiles.active=default", "--spring.datasource.url=" + DB.getJdbcUrl(),
                 "--spring.datasource.username=" + DB.getUsername(),
                 "--spring.datasource.password=" + DB.getPassword());
         environment = application.getEnvironment();
@@ -73,6 +73,13 @@ class AccountsIT {
         assertEquals("INVALID_REQUEST", json.readTree(response.body()).get("code").asText());
     }
     @Test void reportsInvalidUuid() throws Exception { assertEquals(400, get("/accounts/invalid").statusCode()); }
+    @Test void fundingRouteIsAbsentOutsideDemoProfile() throws Exception {
+        assertArrayEquals(new String[]{"default"}, environment.getActiveProfiles());
+        var response = http.send(HttpRequest.newBuilder(uri("/demo/fundings"))
+                .header("Content-Type", "application/json").POST(HttpRequest.BodyPublishers.ofString("{}")).build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertEquals(404, response.statusCode());
+    }
     @Test void reportsUnknownRoute() throws Exception { assertEquals(404, get("/missing").statusCode()); }
     @Test void rejectsUnexpectedBalanceProperty() throws Exception {
         var response = post(json.writeValueAsString(java.util.Map.of("name", "Demo", "balanceCents", 100)));

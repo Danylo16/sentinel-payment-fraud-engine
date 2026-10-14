@@ -1,0 +1,3 @@
+sentinel:
+  demo:
+    funding-token: ${DEMO_FUNDING_TOKEN:}

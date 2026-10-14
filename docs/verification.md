@@ -1,51 +1,31 @@
-# Executed verification — 2026-10-14
+# Executed verification — Phase 2
 
-This is an execution record, not a claim that Phase 1 has passed its gate.
+Starting Foundation commit: `79a8d06`. Phase 2 payment commit: `dcebaa28d5a103d790665d4b2f2e4c1ce6304829`.
 
-| Check | Result | Evidence / limitation |
+GitHub Actions [run 38630008919](https://github.com/Danylo16/sentinel-payment-fraud-engine/actions/runs/38630008919)
+executed `mvn verify` on Java 21 with real PostgreSQL 17.6 Testcontainers and finished successfully:
+
+| Suite | Passed | Failures / errors / skips |
 | --- | --- | --- |
-| Java 21 compiler / Maven Enforcer | PASS | JDK 21.0.12.1, Maven 3.9.11 |
-| `mvn test` | PASS | 5 unit tests; zero failures, errors or skips |
-| `mvn clean package` | PASS | All sources and integration test sources compiled; 5 unit tests passed |
-| Packaged JAR integrity | PASS | Zip CRC check; 71 nested dependencies |
-| Packaged application HTTP smoke | PASS | Real process startup, OpenAPI 200, five expected 400/404 responses |
-| PostgreSQL Testcontainers suite | BLOCKED / command FAILED | No valid Docker environment, no `/var/run/docker.sock` |
-| `mvn verify` | FAILED | Integration container initialization failed before database cases ran |
-| Docker Compose startup | NOT RUN | Docker unavailable |
-| GitHub Actions execution | NOT RUN | Workflow prepared; no remote repository was created |
+| AccountNameTest | 6 | 0 / 0 / 0 |
+| TransferCommandTest | 5 | 0 / 0 / 0 |
+| AccountsIT | 14 | 0 / 0 / 0 |
+| PaymentsIT | 18 | 0 / 0 / 0 |
+| BalanceLimitsIT | 1 | 0 / 0 / 0 |
+| Total | 44 | 0 / 0 / 0 |
 
-The HTTP smoke disabled Flyway and used no live database. It checked unknown route, invalid UUID,
-malformed JSON, blank name and a forbidden initial balance property, plus generated OpenAPI paths.
-It does not validate migrations, successful account creation, SQL constraints or persistence.
+The suite verifies concurrency, idempotency, rollback fault injection, SQL constraints/immutability,
+lock timeout, stable rejected replays and BIGINT bounds. Three independent PostgreSQL containers
+were started, and Flyway successfully applied V1 and V2. CI retains Surefire/Failsafe reports.
 
-One earlier packaged JAR was found truncated during direct launch. A clean rebuild replaced it;
-CRC validation and launching the rebuilt JAR then succeeded. The delivered source excludes build output.
+The local workspace has no Docker daemon; local compilation and 11 unit tests also passed.
+Final executable-code commit: `96d68ef37126c454a0af6fb7beeb43ffe192e778`.
+[CI run 38630582461](https://github.com/Danylo16/sentinel-payment-fraud-engine/actions/runs/38630582461)
+repeated all 44 tests successfully and also passed the Docker Compose payment smoke check.
+The smoke built the real application image, started the Compose database/application, applied V1/V2,
+used the protected demo funding endpoint, transferred 100 cents, replayed the same key and verified
+balances 900/100, total balance zero and exactly two zero-sum entries for the transfer.
+Its volume was isolated and removed after the check. No performance/load tests have been run.
 
-The first integration attempt also exposed a Spring 7/JUnit 5 extension incompatibility. It was fixed
-by removing Spring's JUnit extension and starting/stopping SpringApplication with plain JUnit 5
-lifecycle methods. The subsequent run reported only the Docker initialization failure.
-
-The integration suite has 13 authored scenarios. A Failsafe report counting one class initialization
-error does **not** mean those 13 scenarios executed. They remain unverified.
-
-Next gate: run `mvn verify` with Java 21 and a running Docker daemon. Then run `docker compose up --build`
-and create/read an account over HTTP. Fix any discovered issues before Phase 2.
-
-## GitHub status
-
-Authenticated account confirmed as `Danylo16`. The available connector has no repository creation
-operation. Looking up `Danylo16/sentinel-payment-fraud-engine` returned 404; that alone is not proof
-that no private inaccessible repository exists. No other repositories were changed.
-
-This archive includes a local Git repository and a Foundation commit. Commit metadata uses a local
-automation identity rather than inventing the user's email address. It has no configured remote.
-
-After creating an empty repository under your own account, from the extracted project directory:
-
-```sh
-git remote add origin https://github.com/Danylo16/sentinel-payment-fraud-engine.git
-git push -u origin main
-```
-
-Create it without an initial README/gitignore to avoid unrelated merge history. If a repository already
-exists, inspect it first; do not force push. GitHub authentication is handled by your credential manager.
+Older files under docs/test-reports belong to historical Foundation debugging and are superseded
+by the executed CI evidence above. They do not describe the current Phase 2 result.
