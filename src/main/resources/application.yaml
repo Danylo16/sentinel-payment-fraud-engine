@@ -30,3 +30,17 @@ logging:
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
+
+sentinel:
+  fraud:
+    review-threshold: 40
+    decline-threshold: 70
+    large-amount-cents: 100000
+    large-amount-risk: 35
+    velocity-limit: 5
+    velocity-window-seconds: 60
+    velocity-risk: 30
+    new-recipient-risk: 20
+    minimum-history: 5
+    deviation-multiplier: 3
+    deviation-risk: 35

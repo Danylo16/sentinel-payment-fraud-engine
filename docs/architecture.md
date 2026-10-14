@@ -8,10 +8,10 @@
 | payments | Request claim, idempotency, lifecycle and transaction orchestration | HTTP |
 | ledger | Paired immutable entries and paginated history | payments and accounts HTTP |
 | audit | Append-only status events | payments and transfer HTTP |
-| fraud | Not implemented yet | Planned: payments |
+| fraud | Independent rules, configuration, historical observations and immutable decisions | payments and transfer HTTP |
 
 One PostgreSQL database, one application. All payment mutations participate in the same transaction.
-`AccountFunds`, ledger writes and audit writes require an existing transaction (MANDATORY).
+`AccountFunds`, fraud assessment, ledger writes and audit writes require an existing transaction (MANDATORY).
 Services own business use cases; controllers own HTTP status/headers and input validation.
 
 ## Transfer sequence
@@ -21,13 +21,13 @@ Services own business use cases; controllers own HTTP status/headers and input v
    the unique key using INSERT ON CONFLICT DO NOTHING. A concurrent loser reads the winning result.
 3. Write RECEIVED audit event. Lock both accounts in ascending PostgreSQL UUID order with
    FOR NO KEY UPDATE (compatible with FK KEY SHARE locks).
-4. Recheck account types, available funds and numeric limits under locks.
-5. REJECTED: persist reason and audit, no monetary entries. COMPLETED: guarded balances, negative
+4. Recheck account types, then evaluate fraud using a new READ COMMITTED snapshot after locks. Persist the decision, triggered rules and observed values. REVIEW/DECLINE commit only the request, decision and status audit; no money moves.
+5. For APPROVE (or controlled funding), check available funds and numeric limits under locks.
+6. REJECTED: persist reason and audit, no monetary entries. COMPLETED: guarded balances, negative
    payer entry, positive payee entry, status and audit, all in the same transaction.
-6. Deferred database checks validate the final committed state. Only then can the service return.
+7. Deferred database checks validate the final committed state. Only then can the service return.
 
-No fraud statuses exist yet. Phase 3 must add REVIEW/DECLINE through a new migration and prohibit
-ledger entries for those outcomes. Ordinary key replay must never complete a pending REVIEW.
+V3 adds REVIEW and DECLINED. REVIEW remains pending without an approval route; key replay returns the original result and cannot execute it. Database constraints require a matching decision for every new customer transfer, and zero entries for unexecuted outcomes.
 
 ## Data ownership and constraints
 
@@ -36,4 +36,4 @@ Flyway remains schema authority. Financial guarantees are SQL constraints/trigge
 coordination, not HTTP checks alone. Ledger amounts use signed BIGINT; aggregate reconciliation uses
 NUMERIC to avoid SUM overflow. System counter-account is included in money conservation.
 
-See ADR 001 for Foundation and ADR 002 for decisions, tradeoffs, deadlocks and funding protection.
+See ADR 001 for Foundation ADR 002 for payments/deadlocks/funding, and ADR 003 for fraud semantics and concurrency.

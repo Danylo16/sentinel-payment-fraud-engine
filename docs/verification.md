@@ -1,4 +1,4 @@
-# Executed verification — Phase 2
+# Executed verification — Phases 2 and 3
 
 Starting Foundation commit: `79a8d06`. Phase 2 payment commit: `dcebaa28d5a103d790665d4b2f2e4c1ce6304829`.
 
@@ -29,3 +29,39 @@ Its volume was isolated and removed after the check. No performance/load tests h
 
 Older files under docs/test-reports belong to historical Foundation debugging and are superseded
 by the executed CI evidence above. They do not describe the current Phase 2 result.
+
+## Phase 3 — executed fraud verification
+
+Executable commit: `eee97382c8fcbf7548f5036e094f89ce8483560d`.
+[GitHub Actions run 38637803402](https://github.com/Danylo16/sentinel-payment-fraud-engine/actions/runs/38637803402)
+completed successfully on 2026-10-14. The test step intentionally inherited SPRING_PROFILES_ACTIVE=demo;
+individual test applications explicitly chose their own profile.
+
+| Suite | Passed | Failures / errors / skips |
+| --- | --- | --- |
+| AccountNameTest | 6 | 0 / 0 / 0 |
+| TransferCommandTest (including the user's one-cent test) | 6 | 0 / 0 / 0 |
+| FraudEngineTest | 9 | 0 / 0 / 0 |
+| AccountsIT | 14 | 0 / 0 / 0 |
+| PaymentsIT | 18 | 0 / 0 / 0 |
+| BalanceLimitsIT | 1 | 0 / 0 / 0 |
+| FraudIT | 15 | 0 / 0 / 0 |
+| FraudMigrationIT | 1 | 0 / 0 / 0 |
+| Total | 70 | 0 / 0 / 0 |
+
+21 unit and 49 integration cases passed. PostgreSQL containers exercised V1/V2/V3, fraud SQL
+constraints, concurrent velocity decisions, duplicate REVIEW requests, immutable decisions, score
+forgery rejection, decision-write rollback and safe retry, expired observations, and database time
+captured after an actually blocked payment acquired its account lock. The upgrade test populated V2
+with ledger-backed funding, then migrated to V3 and verified preserved history/balances plus a new
+assessed transfer. Phase 2 accounting/concurrency tests remained passing; their velocity threshold
+is explicitly raised to isolate accounting stress from the separate default-policy fraud tests.
+
+The Compose smoke built the real image and checked HTTP APPROVE (20), REVIEW (55), DECLINE (100),
+review replay, balances unchanged by unexecuted decisions, zero ledger entries for REVIEW/DECLINED,
+and global conservation. The isolated test volume was removed after completion.
+
+The local workspace compiled every test class and ran all 21 unit cases successfully. It has no
+Docker daemon, so integration and Compose results above come from actual GitHub Actions execution.
+Earlier failed CI runs exposed missing explicit TIMESTAMPTZ/JSONB parameter casts; those bindings were
+fixed before the successful run. No load/performance measurements have been made. Phase 4 remains.

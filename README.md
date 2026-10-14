@@ -3,8 +3,8 @@
 Educational Java fintech backend for an internship portfolio. Simulation only; no bank accounts,
 payment gateways or real funds.
 
-**Phase 2: accounts, atomic transfers, immutable double-entry movement ledger and audit.**
-Fraud rules, risk scoring and REVIEW/DECLINE are not implemented yet.
+**Phase 3: atomic payments, immutable ledger, configurable fraud rules and decision audit.**
+Simulation only: risk weights are educational, not calibrated to real fraud data.
 Executed checks and their limitations: [verification](docs/verification.md).
 
 ## Stack
@@ -26,6 +26,8 @@ flowchart TD
   P --> F[Account funds]
   P --> L[Ledger]
   P --> U[Audit]
+  P --> R[Fraud assessment]
+  R --> DB
   A --> DB[(PostgreSQL)]
   F --> DB
   L --> DB
@@ -33,7 +35,7 @@ flowchart TD
 ```
 
 [Payment ADR](docs/adr/002-payment-engine.md) explains the transaction, locking, idempotency and
-accounting guarantees. [Architecture](docs/architecture.md) describes boundaries and Phase 3 plans.
+accounting guarantees. [Architecture](docs/architecture.md) describes module boundaries. [Fraud ADR](docs/adr/003-fraud-engine.md) explains history, scoring and concurrency.
 
 ## Data model
 
@@ -42,10 +44,11 @@ accounting guarantees. [Architecture](docs/architecture.md) describes boundaries
 | accounts | UUID, name, EUR, BIGINT balance, type | Customer balance >= 0; one SYSTEM_CONTRA |
 | transfers | UUID, key, operation, account IDs, amount, status, failure reason | Unique immutable idempotency request; legal status transition |
 | ledger_entries | Identity ID, transfer/account IDs, signed cents | Immutable; two matching opposite entries per completed transfer |
-| audit_events | Identity ID, transfer ID, status event, time | Append-only received/terminal history |
+| audit_events | Identity ID, transfer ID, status event, time | Append-only received/outcome history |
+| fraud_decisions | Transfer ID, version, evaluation time, score, decision, thresholds, rule hits | Immutable; score and status consistency |
 
 Flyway V1 is unchanged. V2 introduces accounting and refuses pre-existing unexplained nonzero balances.
-Accounts created during Foundation with zero balance migrate normally. No existing data needs deletion.
+Accounts created during Foundation with zero balance migrate normally. No existing data needs deletion. V3 preserves Phase 2 balances/history, adds fraud requirements for new customer transfers, and leaves funding and legacy transfers without a fabricated decision.
 
 ## Run
 
@@ -103,6 +106,7 @@ Invoke-RestMethod -Method Post -Uri http://localhost:8080/transfers `
     -Headers $headers -ContentType 'application/json' -Body $body
 Invoke-RestMethod -Uri "http://localhost:8080/transfers/$($t.id)"
 Invoke-RestMethod -Uri "http://localhost:8080/transfers/$($t.id)/audit"
+Invoke-RestMethod -Uri "http://localhost:8080/transfers/$($t.id)/fraud"
 Invoke-RestMethod -Uri "http://localhost:8080/accounts/$($a.id)/transactions?limit=20"
 ```
 
@@ -113,6 +117,9 @@ History is newest first; pass returned `nextBeforeId` as `beforeId` for the next
 | Outcome | HTTP | Body / behavior |
 | --- | --- | --- |
 | Create account or complete new transfer/funding | 201 | Resource and Location header |
+| New REVIEW transfer | 202 | Transfer with REVIEW status; no reserve or spend |
+| New fraud DECLINE | 201 | Created transfer with DECLINED status; no spend |
+| Replay REVIEW or DECLINED | 200 | Original transfer and decision; no re-evaluation |
 | Replay completed transfer | 200 | Original transfer; Idempotency-Replayed: true |
 | Insufficient funds or numeric balance limit | 409 | Stable error containing transferId; persisted REJECTED |
 | Replay rejected request | 409 | Same rejection body even if balance subsequently changes |
@@ -126,6 +133,30 @@ History is newest first; pass returned `nextBeforeId` as `beforeId` for the next
 Errors use `timestamp`, `status`, `code`, `message`, `errorId`, `fields`. Unexpected SQL messages and
 request bodies are not logged. No balances, names, tokens or idempotency keys are logged by our services.
 
+## Fraud policy
+
+| Rule ID | Default condition | Contribution |
+| --- | --- | --- |
+| LARGE_AMOUNT | Amount >= 100000 cents (1000 EUR) | 35 |
+| VELOCITY | At least 5 previous evaluated attempts in 60 seconds | 30 |
+| NEW_RECIPIENT | No completed transfer from this source to this recipient | 20 |
+| AMOUNT_DEVIATION | At least 5 completed transfers in 30 days; amount >= 3 × their average | 35 |
+
+Sum contributions, capped at 100: 0–39 APPROVE, 40–69 REVIEW, 70–100 DECLINE.
+Settings live under `sentinel.fraud` in `application.yaml`; invalid settings fail startup.
+`GET /transfers/{id}/fraud` returns engine version, evaluation time, thresholds and triggered rules
+with evidence. Funding and pre-V3 transfers return 404 on this route.
+
+Velocity includes APPROVE, REVIEW and DECLINE decisions, even when an approved attempt was rejected
+for insufficient funds. Idempotent replays do not add observations. Funding is excluded.
+New-recipient history requires a completed payment, so a reviewed recipient is still new.
+Fraud reads happen after ordered account locks; the observation clock comes from PostgreSQL after
+waiting. Decimal averages use BigDecimal; no binary floating point is used for money.
+
+REVIEW does not reserve funds and cannot execute by replaying its key. There is no review-approval
+endpoint in this phase. DECLINED is permanent. Keep this simulation on localhost: customer endpoints
+have no user authentication or authorization.
+
 ## Financial invariants
 
 1. Total balances including SYSTEM_CONTRA remain zero.
@@ -134,7 +165,8 @@ request bodies are not logged. No balances, names, tokens or idempotency keys ar
 4. Customer balances never become negative; arithmetic bounds prevent BIGINT overflow/underflow.
 5. A committed idempotency key identifies one immutable request and stable result.
 6. Balance changes, ledger, status and audit commit or roll back together.
-7. Rejected transfers have zero ledger entries. Ledger and audit cannot be updated, deleted or truncated.
+7. REJECTED, REVIEW and DECLINED transfers have zero ledger entries. Ledger, audit and fraud decisions cannot be updated, deleted or truncated.
+8. New customer transfers require exactly one matching fraud decision; completed/rejected payments require APPROVE.
 
 Constraints and deferred triggers enforce these at the database boundary. A database administrator can
 still disable triggers; the development owner role is not a production tamper-proof security design.
@@ -142,7 +174,7 @@ still disable triggers; the development owner role is not a production tamper-pr
 ## Tests
 
 ```sh
-mvn test    # 11 unit cases
+mvn test    # Unit tests (including independent fraud rules)
 mvn verify  # Unit + real PostgreSQL Testcontainers tests
 ```
 
@@ -150,7 +182,8 @@ mvn verify  # Unit + real PostgreSQL Testcontainers tests
 are independent of Compose data. Integration checks include HTTP contracts, accounting constraints,
 parallel identical requests, overspending, opposite-direction transfers, failure during the second
 ledger write, stable rejection replay, lock timeout, immutable history and integer bounds.
-CI runs verify, a Docker Compose payment smoke check, and retains reports. Execution status is in [verification](docs/verification.md).
+Fraud tests additionally cover scoring boundaries, concurrent velocity decisions, REVIEW/DECLINE replay, immutable decisions, decision-write rollback, expired windows and upgrading a populated V2 database.
+CI runs verify, a Docker Compose payment and fraud smoke check, and retains reports. Execution status is in [verification](docs/verification.md).
 
 ## Limits and next steps
 
@@ -158,7 +191,6 @@ No authentication for customer API, KYC/AML, gateway integrations, FX, fees, res
 manual review workflow, production roles/backups or distributed operations. No performance claims.
 Funding is an accounting simulation, not an external settlement integration.
 
-Phase 3: deterministic fraud rules, configurable scoring, persisted decisions and no monetary writes
-for REVIEW/DECLINE. Phase 4: measured load, bottleneck analysis, final review and reproducible demo.
+Phase 4: measured load, bottleneck analysis, final review and reproducible demo.
 
 Learning exercise: [docs/learning.md](docs/learning.md).
